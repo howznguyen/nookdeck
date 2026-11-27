@@ -1,4 +1,6 @@
 export const VI: { [en: string]: string } = {
+  "This browser can let the screen turn off. To keep it on, open Settings, Display, Screen timeout, and pick the longest time.": "Trình duyệt này có thể để màn hình tự tắt. Để màn hình luôn sáng, mở Cài đặt, Màn hình, Thời gian chờ màn hình, rồi chọn thời gian dài nhất.",
+  "Got it": "Đã hiểu",
   "No GPU data": "Không có dữ liệu GPU",
   "GPU mem": "Bộ nhớ GPU",
   "VRAM": "VRAM",

@@ -1,4 +1,6 @@
 export const PT: { [en: string]: string } = {
+  "This browser can let the screen turn off. To keep it on, open Settings, Display, Screen timeout, and pick the longest time.": "Este navegador pode deixar a tela apagar. Para mantê-la acesa, abra Configurações, Tela, Tempo limite da tela, e escolha o maior tempo.",
+  "Got it": "Entendi",
   "No GPU data": "Sem dados da GPU",
   "GPU mem": "Mem. GPU",
   "VRAM": "VRAM",

@@ -65,6 +65,8 @@ function PairingCard() {
     try { window.localStorage.setItem(ADDRESS_KEY, id); } catch { /* the choice just is not remembered */ }
   };
   const link = !pairing ? "" : chosen ? addressLink(chosen.host, pairing) : pairing.url ?? pairing.urlLocal;
+  /** what to type on a phone without a QR scanner: 192.168.1.10:7420 (the browser adds http://, the deck asks for the PIN) */
+  const typed = typedAddress(link);
 
   const load = useCallback(async () => {
     try {
@@ -121,6 +123,12 @@ function PairingCard() {
               <div className="font-mono text-3xl font-semibold tracking-[0.3em] tabular-nums" aria-label={t("PIN {pin}", { pin: pairing.pin.split("").join(" ") })}>{pairing.pin}</div>
             </div>
             <code className="w-full break-all rounded-lg bg-muted px-2.5 py-1.5 text-center text-xs select-all">{link}</code>
+            {typed && (
+              <div className="w-full rounded-lg border p-2.5 text-center" data-part="type-address">
+                <p className="text-[11.5px] leading-snug text-muted-foreground">{t("No QR scanner on the phone? Type this address in its browser, then enter the PIN:")}</p>
+                <div className="mt-1 font-mono text-xl font-semibold tabular-nums select-all break-all">{typed}</div>
+              </div>
+            )}
             <p className="text-center text-xs text-muted-foreground">
               {chosen?.kind === "tailscale" ? t("Scan the QR code or open the link on a phone signed in to the same Tailscale network.")
                 : chosen && (chosen.kind === "vpn" || chosen.kind === "other") ? t("Scan the QR code or open the link on a phone that can reach this address.")
@@ -145,6 +153,15 @@ function PairingCard() {
       </CardContent>
     </Card>
   );
+}
+
+/** "http://192.168.1.10:7420/?pin=123456" -> "192.168.1.10:7420"; "" when it is not a link. */
+export function typedAddress(link: string): string {
+  try {
+    return link ? new URL(link).host : "";
+  } catch {
+    return "";
+  }
 }
 
 function DeviceList() {

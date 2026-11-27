@@ -21,6 +21,7 @@ export const VI_SCREENS: Record<string, string> = {
   "Loading": "Đang tải",
   "PIN code": "Mã PIN",
   "PIN {pin}": "PIN {pin}",
+  "No QR scanner on the phone? Type this address in its browser, then enter the PIN:": "Điện thoại không quét được QR? Gõ địa chỉ này vào trình duyệt của máy, rồi nhập mã PIN:",
   "Scan the QR code or open the link on a phone on the same Wi-Fi network.": "Quét mã QR hoặc mở đường dẫn trên điện thoại cùng mạng Wi-Fi.",
   "Copied": "Đã chép",
   "Copy link": "Chép đường dẫn",

@@ -21,7 +21,7 @@ import { coreTileOf, previewSlot } from './plugin-logic'
 import { CameraView, setCameraBase } from './camera'
 import { previewSound } from './alarm-sound'
 import type { PluginSlot } from './plugin-logic'
-import { browserShiftHost, headerMode, keepAwakeOn, liteOn, localScreen, onLocalScreen, runShift, shiftOn } from './screen-logic'
+import { awakeHintDismissed, awakeHintNeeded, browserShiftHost, dismissAwakeHint, headerMode, keepAwakeOn, liteOn, localScreen, onLocalScreen, runShift, shiftOn } from './screen-logic'
 import type { PermissionRequest, QuestionRequest, WeatherData, PushedValue, Notice, GotoReq, HassEntity, HassState, IconAssets, AiData, Item, Layout, Media, MediaCommand, Orientation, Page, Stats, Theme, TileStyle } from './types'
 
 export { Icon }
@@ -1258,6 +1258,9 @@ export function Deck(props: DeckProps) {
 
   // screen wake lock
   const keepAwake = keepAwakeOn(st.layout && st.layout.theme ? st.layout.theme.screen : undefined) && !asleep
+  // Android on http: no Wake Lock and no video trick, so say once how to keep the screen on in the phone's settings
+  const [awakeHintOff, setAwakeHintOff] = useState(awakeHintDismissed)
+  const awakeHint = !preview && st.status !== 'pair' && !awakeHintOff && awakeHintNeeded(navigator.userAgent || '', !!(navigator as any).wakeLock, keepAwakeOn(st.layout && st.layout.theme ? st.layout.theme.screen : undefined), false)
   useEffect(() => {
     if (!active || preview || !keepAwake) return
     let lock: any = null
@@ -2295,6 +2298,12 @@ export function Deck(props: DeckProps) {
             </div>
           ) : null}
           {scrOpen && !preview ? <ScreenSheet settings={theme.screen} header={theme.header} alarms={st.layout ? st.layout.alarms : undefined} onClose={() => setScrOpen(false)} /> : null}
+          {awakeHint ? (
+            <div class="pd-awake-hint" role="note" data-part="awake-hint">
+              <p>{t('This browser can let the screen turn off. To keep it on, open Settings, Display, Screen timeout, and pick the longest time.')}</p>
+              <button type="button" onClick={() => { dismissAwakeHint(); setAwakeHintOff(true) }}>{t('Got it')}</button>
+            </div>
+          ) : null}
           <div class={'pd-toast' + (toast ? ' pd-toast--on' : '') + (toastLv ? ' pd-toast--' + toastLv : '')} role="status">
             {toast}
           </div>

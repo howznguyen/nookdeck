@@ -21,6 +21,7 @@ export const ZH_SCREENS: Record<string, string> = {
   "Loading": "加载中",
   "PIN code": "PIN 码",
   "PIN {pin}": "PIN {pin}",
+  "No QR scanner on the phone? Type this address in its browser, then enter the PIN:": "手机无法扫描二维码？在手机浏览器中输入这个地址，然后输入 PIN：",
   "Scan the QR code or open the link on a phone on the same Wi-Fi network.": "请用同一 Wi-Fi 网络下的手机扫描二维码或打开链接。",
   "Copied": "已复制",
   "Copy link": "复制链接",

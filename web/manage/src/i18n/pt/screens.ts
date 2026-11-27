@@ -21,6 +21,7 @@ export const PT_SCREENS: Record<string, string> = {
   "Loading": "Carregando",
   "PIN code": "Código PIN",
   "PIN {pin}": "PIN {pin}",
+  "No QR scanner on the phone? Type this address in its browser, then enter the PIN:": "O celular não lê QR code? Digite este endereço no navegador dele e depois o PIN:",
   "Scan the QR code or open the link on a phone on the same Wi-Fi network.": "Escaneie o QR code ou abra o link em um celular na mesma rede Wi-Fi.",
   "Copied": "Copiado",
   "Copy link": "Copiar link",

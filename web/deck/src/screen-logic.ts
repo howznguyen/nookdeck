@@ -311,3 +311,15 @@ export const browserShiftHost = (): ShiftHost => ({
 })
 
 export const pad2 = (n: number) => (n < 10 ? '0' : '') + n
+
+const K_AWAKE_HINT = 'pd.awakeHint'
+/**
+ * Android browsers give a page on http://<LAN address> no Wake Lock (it needs HTTPS), and Chrome no longer keeps the screen on for a
+ * muted looping video, so the deck cannot promise to stay lit: say once how to make the phone itself keep the screen on.
+ * iPhones and iPads keep the video trick, which still works there.
+ */
+export function awakeHintNeeded(ua: string, hasWakeLock: boolean, keepAwake: boolean, dismissed: boolean): boolean {
+  return keepAwake && !hasWakeLock && !dismissed && /Android/i.test(ua)
+}
+export const awakeHintDismissed = (): boolean => store.get(K_AWAKE_HINT) === '1'
+export const dismissAwakeHint = (): void => store.set(K_AWAKE_HINT, '1')

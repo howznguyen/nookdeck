@@ -1,4 +1,6 @@
 export const ZH: { [en: string]: string } = {
+  "This browser can let the screen turn off. To keep it on, open Settings, Display, Screen timeout, and pick the longest time.": "此浏览器可能会让屏幕自动熄灭。要保持常亮，请打开“设置”，“显示”，“屏幕超时”，选择最长的时间。",
+  "Got it": "知道了",
   "Burn-in shift": "防烧屏位移",
   "Moves the grid 2 px every 3 minutes": "每 3 分钟将网格移动 2 px",
   "Night dim": "夜间调暗",

@@ -1,4 +1,6 @@
 export const FR: { [en: string]: string } = {
+  "This browser can let the screen turn off. To keep it on, open Settings, Display, Screen timeout, and pick the longest time.": "Ce navigateur peut laisser l’écran s’éteindre. Pour le garder allumé, ouvrez Paramètres, Affichage, Mise en veille de l’écran, et choisissez la durée la plus longue.",
+  "Got it": "Compris",
   "No GPU data": "Aucune donnée GPU",
   "GPU mem": "Mém. GPU",
   "VRAM": "VRAM",

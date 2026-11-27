@@ -636,6 +636,42 @@
 }
 
 
+/* ---------- Keep-awake hint (Android on http) ---------- */
+.pd-awake-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 79;
+  width: 92%;
+  max-width: 460px;
+  -webkit-transform: translateX(-50%);
+  transform: translateX(-50%);
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #f59e0b;
+  border-radius: var(--pd-radius);
+  background: var(--pd-tile);
+  color: var(--pd-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pd-awake-hint p { margin: 0 10px 0 0; -webkit-flex: 1; flex: 1; }
+.pd-awake-hint button {
+  -webkit-flex: none;
+  flex: none;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--pd-radius);
+  background: #f59e0b;
+  color: #111;
+  font: inherit;
+  font-weight: 600;
+}
+
 /* ---------- Status bar ---------- */
 .pd-conn__m {
   display: -webkit-flex;
