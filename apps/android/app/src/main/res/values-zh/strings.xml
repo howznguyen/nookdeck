@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nookdeck</string>
+    <string name="connecting">正在连接电脑…</string>
+    <string name="searching">正在此 Wi-Fi 中查找 Nookdeck…</string>
+    <string name="found">在此 Wi-Fi 中找到的电脑：</string>
+    <string name="none_found">没有找到电脑。Nookdeck 是否在运行，手机是否连接同一 Wi-Fi？</string>
+    <string name="address_hint">电脑上显示的地址，例如 192.168.1.10:7420</string>
+    <string name="open">打开</string>
+    <string name="retry">重新查找</string>
+    <string name="usb_tip">或者打开 USB 调试后用数据线连接电脑，然后在电脑的 Devices 页点击设置。</string>
+    <string name="bad_address">该地址没有响应。</string>
+</resources>

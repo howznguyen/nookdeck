@@ -66,6 +66,8 @@ import { userHome } from "./home";
 import { screenshotToolsFor } from "../web/shared/screenshot";
 import pkg from "../package.json" with { type: "json" };
 import { aboutInfo, compatVersion } from "./about";
+import { AndroidUsb, releaseApk } from "./android/usb";
+import { osId } from "./android/adb";
 import { PluginStore, PluginError } from "./plugins/store";
 import { PluginRuntime, realShell } from "./plugins/runtime";
 import { PluginHosts, type HostsDeps } from "./plugins/hosts";
@@ -507,6 +509,21 @@ export async function startServer(opts: StartOptions = {}) {
     };
   };
 
+  // one-cable setup for Android phones (adb): created on first use, once the port is known
+  let usbSetup: AndroidUsb | undefined;
+  const androidUsb = (): AndroidUsb => (usbSetup ??= new AndroidUsb({
+    home: HOME,
+    os: osId(platform.id),
+    port: server.port as number,
+    agentVersion: aboutInfo().version,
+    pairTrusted: (name, serial) => pairing.pairTrusted(name, serial),
+    usbSerials: async () => (await loadDevices()).flatMap((d) => (d.usbSerial ? [d.usbSerial] : [])),
+    lanUrls: async () => (await pairingInfo()).addresses.filter((a) => a.kind === "lan").map((a) => `http://${a.host}:${server.port}`).slice(0, 4),
+    computerName: () => (opts.hostName ?? localHostName)(),
+    apk: () => releaseApk(HOME, aboutInfo().version, process.env),
+    log: (line) => console.log(line),
+  }));
+
   let lastStats: Stats | undefined;
   const stopStats = deps.startStats((stats) => {
     lastStats = stats;
@@ -933,6 +950,29 @@ export async function startServer(opts: StartOptions = {}) {
         return json({ error: "method not allowed" }, 405);
       }
 
+      if (path === "/api/android" && req.method === "GET") {
+        const denied = guardLocal(server, req);
+        if (denied) return denied;
+        return json(url.searchParams.get("peek") === "1" ? androidUsb().peek() : await androidUsb().status());
+      }
+      if (path === "/api/android/adb" && req.method === "POST") {
+        const denied = guardLocal(server, req);
+        if (denied) return denied;
+        try { return json({ ok: true, adb: await androidUsb().installAdb() }); } catch (e: any) { return json({ ok: false, error: String(e?.message ?? e) }, 502); }
+      }
+      if (path === "/api/android/setup" && req.method === "POST") {
+        const denied = guardLocal(server, req);
+        if (denied) return denied;
+        const body = await readBody(req);
+        const r = await androidUsb().setup(String(body?.serial ?? ""), { stayAwake: body?.stayAwake === true, battery: body?.battery === true });
+        return json(r, r.ok ? 200 : 400);
+      }
+      if (path === "/api/hello" && req.method === "GET") {
+        // the Android app looks for computers on the Wi-Fi: is this Nookdeck, and what is it called (no PIN, no secret)
+        const bad = await guardPhone(server, req);
+        if (bad) return bad;
+        return json({ app: "nookdeck", name: await (opts.hostName ?? localHostName)().catch(() => ""), version: aboutInfo().version });
+      }
       if (path === "/api/devices" && req.method === "GET") {
         const denied = guardLocal(server, req);
         if (denied) return denied;
@@ -1843,6 +1883,8 @@ export async function startServer(opts: StartOptions = {}) {
       },
     },
   });
+  // phones set up over USB before: link them through the cable again when they are plugged in
+  void androidUsb().start().catch((e) => console.error("android", e));
 
   return {
     server,
@@ -1872,6 +1914,7 @@ export async function startServer(opts: StartOptions = {}) {
       broker.clear();
       questions.clear();
       stopStats();
+      usbSetup?.stop();
       for (const ws of sockets) ws.close();
       server.stop(true);
     },

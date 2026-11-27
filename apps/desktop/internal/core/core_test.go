@@ -499,3 +499,30 @@ func TestFirewallProblem(t *testing.T) {
 		t.Error("ok / nil")
 	}
 }
+
+func TestAndroidOffer(t *testing.T) {
+	if p, k := AndroidOffer(UsbStatus{}); p != nil || k != "" {
+		t.Fatalf("no phones: %v %q", p, k)
+	}
+	cases := []struct {
+		phone UsbPhone
+		want  string
+	}{
+		{UsbPhone{Serial: "a", State: "unauthorized"}, "allow"},
+		{UsbPhone{Serial: "a", State: "device"}, "setup"},
+		{UsbPhone{Serial: "a", State: "device", App: "0.8.0", SetUp: false}, "setup"},
+		{UsbPhone{Serial: "a", State: "device", App: "0.7.0", SetUp: true, AppOld: true}, "update"},
+		{UsbPhone{Serial: "a", State: "device", App: "0.8.0", SetUp: true, Linked: true}, ""},
+		{UsbPhone{Serial: "a", State: "offline"}, ""},
+	}
+	for _, c := range cases {
+		if _, k := AndroidOffer(UsbStatus{Phones: []UsbPhone{c.phone}}); k != c.want {
+			t.Errorf("%+v: got %q, want %q", c.phone, k, c.want)
+		}
+	}
+	// a ready phone after a set-up one is still offered
+	p, k := AndroidOffer(UsbStatus{Phones: []UsbPhone{{Serial: "x", State: "device", App: "1", SetUp: true}, {Serial: "y", State: "device"}}})
+	if p == nil || p.Serial != "y" || k != "setup" {
+		t.Fatalf("second phone: %v %q", p, k)
+	}
+}

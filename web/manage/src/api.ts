@@ -16,6 +16,10 @@ export const PLUGINS_CHANGED = "nookdeck:plugins-changed";
 /** GET /api/screenshot-tools: the tools this computer offers, the known apps installed, and the automatic choice. */
 export interface ScreenshotTools { os: string; tools: ScreenshotTool[]; installed: ScreenshotTool[]; auto: ScreenshotTool }
 
+/** GET /api/android: USB setup of Android phones (adb). */
+export interface UsbPhone { serial: string; state: string; model?: string; android?: string; app?: string; appCode?: number; appOld?: boolean; setUp: boolean; linked: boolean }
+export interface UsbStatus { adb: { path: string; source: "path" | "nookdeck" } | null; phones: UsbPhone[]; error?: string; busy?: string }
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   // Every mutating call carries X-Nookdeck (the agent refuses cross-site requests without it) and, unless it uploads a file, a JSON content type.
@@ -592,4 +596,7 @@ export const api = {
   revokeDevice: (id: string) => request<unknown>(`/api/devices/${encodeURIComponent(id)}`, { method: "DELETE" }),
   getPairing: () => request<Pairing>("/api/pairing"),
   regeneratePairing: () => request<Pairing>("/api/pairing/regenerate", json("POST")),
+  androidStatus: () => request<UsbStatus>("/api/android"),
+  androidInstallAdb: () => request<{ ok: boolean }>("/api/android/adb", json("POST")),
+  androidSetup: (serial: string, o: { stayAwake: boolean; battery: boolean }) => request<{ ok: true; model: string }>("/api/android/setup", json("POST", { serial, ...o })),
 };

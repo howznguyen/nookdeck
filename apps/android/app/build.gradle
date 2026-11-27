@@ -1,0 +1,46 @@
+// The Nookdeck Android app: a WebView around the deck the agent serves (spec: specs/2026-11-27/android-app-and-usb-setup).
+// No libraries: plain android.app.Activity and WebView keep the APK small and run on Android 5.0 (API 21).
+plugins { id "com.android.application" }
+
+// The agent version (package.json), passed by the release: -PnookdeckVersion=0.8.1. The versionCode follows the agent's rule
+// (src/android/usb.ts versionCode): major*10000 + minor*100 + patch, so the agent knows when the installed app is older.
+def appVersion = (project.findProperty("nookdeckVersion") ?: "0.0.1").toString()
+def parts = (appVersion =~ /^(\d+)\.(\d+)\.(\d+)/)
+def code = parts.find() ? parts.group(1).toInteger() * 10000 + parts.group(2).toInteger() * 100 + parts.group(3).toInteger() : 1
+
+android {
+    namespace "app.nookdeck"
+    compileSdk 35
+    defaultConfig {
+        applicationId "app.nookdeck"
+        minSdk 21
+        targetSdk 35
+        versionCode code
+        versionName appVersion
+    }
+    signingConfigs {
+        release {
+            // the owner's release key, from the environment in CI; without it the release build uses the debug key (testing only)
+            def ks = System.getenv("NOOKDECK_ANDROID_KEYSTORE")
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv("NOOKDECK_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("NOOKDECK_ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("NOOKDECK_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")
+            signingConfig System.getenv("NOOKDECK_ANDROID_KEYSTORE") ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    lint { abortOnError false }
+}

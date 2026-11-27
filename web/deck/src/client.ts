@@ -127,6 +127,28 @@ export function shortDeviceName(): string {
   return br ? os + ' ' + br : os
 }
 
+/**
+ * The Android app opens the deck at <address>/#token=<64 hex>: keep it like a token from pairing, and take it out of the address bar
+ * and history. Each address (USB, Wi-Fi) is its own origin with its own storage, so the app passes the token every time.
+ */
+export function takeHashToken(hash: string): string | null {
+  const m = /^#token=([0-9a-f]{64})$/.exec(hash || '')
+  return m ? m[1] : null
+}
+;(() => {
+  try {
+    const tok = takeHashToken(location.hash)
+    if (!tok) return
+    if (store.get(K_TOKEN) !== tok) {
+      store.set(K_TOKEN, tok)
+      store.del(K_DEVICE)
+    }
+    history.replaceState(null, '', location.pathname + location.search)
+  } catch (e) {
+    /* not in a browser */
+  }
+})()
+
 export const savedDeviceName = () => store.get(K_NAME) || shortDeviceName()
 
 interface Pending {

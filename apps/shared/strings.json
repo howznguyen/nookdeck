@@ -132,7 +132,14 @@
     "update.tray.failed": "The update did not finish: {error}",
     "update.tray.cancelled": "The install was cancelled.",
     "update.tray.close": "Close",
-    "update.tray.gone": "Nookdeck has stopped. You can close this window."
+    "update.tray.gone": "Nookdeck has stopped. You can close this window.",
+    "menu.androidSetup": "Set up Nookdeck on {model}…",
+    "menu.androidUpdate": "Update Nookdeck on {model}…",
+    "menu.androidAllow": "Allow USB debugging on {model}",
+    "android.phone": "the Android phone",
+    "android.done": "{model} is set up: the deck is open on the phone, through the USB cable.",
+    "android.failed": "Could not set up {model}: {error}",
+    "status.androidSetup": "Setting up the Android phone…"
   },
   "vi": {
     "app.name": "Nookdeck",
@@ -256,7 +263,14 @@
     "update.tray.failed": "Cập nhật chưa xong: {error}",
     "update.tray.cancelled": "Đã hủy cài đặt.",
     "update.tray.close": "Đóng",
-    "update.tray.gone": "Nookdeck đã dừng. Bạn có thể đóng cửa sổ này."
+    "update.tray.gone": "Nookdeck đã dừng. Bạn có thể đóng cửa sổ này.",
+    "menu.androidSetup": "Cài Nookdeck lên {model}…",
+    "menu.androidUpdate": "Cập nhật Nookdeck trên {model}…",
+    "menu.androidAllow": "Cho phép Gỡ lỗi USB trên {model}",
+    "android.phone": "điện thoại Android",
+    "android.done": "Đã cài xong {model}: deck đang mở trên điện thoại, qua cáp USB.",
+    "android.failed": "Không cài được {model}: {error}",
+    "status.androidSetup": "Đang cài điện thoại Android…"
   },
   "zh": {
     "app.name": "Nookdeck",
@@ -380,7 +394,14 @@
     "update.tray.failed": "更新未完成：{error}",
     "update.tray.cancelled": "安装已取消。",
     "update.tray.close": "关闭",
-    "update.tray.gone": "Nookdeck 已停止。你可以关闭此窗口。"
+    "update.tray.gone": "Nookdeck 已停止。你可以关闭此窗口。",
+    "menu.androidSetup": "在 {model} 上设置 Nookdeck…",
+    "menu.androidUpdate": "更新 {model} 上的 Nookdeck…",
+    "menu.androidAllow": "在 {model} 上允许 USB 调试",
+    "android.phone": "安卓手机",
+    "android.done": "{model} 已设置完成：手机上已通过 USB 数据线打开面板。",
+    "android.failed": "无法设置 {model}：{error}",
+    "status.androidSetup": "正在设置安卓手机…"
   },
   "fr": {
     "app.name": "Nookdeck",
@@ -504,7 +525,14 @@
     "update.tray.failed": "La mise à jour n'a pas abouti : {error}",
     "update.tray.cancelled": "L'installation a été annulée.",
     "update.tray.close": "Fermer",
-    "update.tray.gone": "Nookdeck s'est arrêté. Vous pouvez fermer cette fenêtre."
+    "update.tray.gone": "Nookdeck s'est arrêté. Vous pouvez fermer cette fenêtre.",
+    "menu.androidSetup": "Configurer Nookdeck sur {model}…",
+    "menu.androidUpdate": "Mettre à jour Nookdeck sur {model}…",
+    "menu.androidAllow": "Autoriser le débogage USB sur {model}",
+    "android.phone": "le téléphone Android",
+    "android.done": "{model} est configuré : le deck est ouvert sur le téléphone, par le câble USB.",
+    "android.failed": "Impossible de configurer {model} : {error}",
+    "status.androidSetup": "Configuration du téléphone Android…"
   },
   "pt": {
     "app.name": "Nookdeck",
@@ -628,6 +656,13 @@
     "update.tray.failed": "A atualização não terminou: {error}",
     "update.tray.cancelled": "A instalação foi cancelada.",
     "update.tray.close": "Fechar",
-    "update.tray.gone": "O Nookdeck parou. Você pode fechar esta janela."
+    "update.tray.gone": "O Nookdeck parou. Você pode fechar esta janela.",
+    "menu.androidSetup": "Configurar o Nookdeck em {model}…",
+    "menu.androidUpdate": "Atualizar o Nookdeck em {model}…",
+    "menu.androidAllow": "Permitir a depuração USB em {model}",
+    "android.phone": "o celular Android",
+    "android.done": "{model} está configurado: o deck está aberto no celular, pelo cabo USB.",
+    "android.failed": "Não foi possível configurar {model}: {error}",
+    "status.androidSetup": "Configurando o celular Android…"
   }
 }

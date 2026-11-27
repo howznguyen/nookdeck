@@ -319,7 +319,8 @@ const K_AWAKE_HINT = 'pd.awakeHint'
  * iPhones and iPads keep the video trick, which still works there.
  */
 export function awakeHintNeeded(ua: string, hasWakeLock: boolean, keepAwake: boolean, dismissed: boolean): boolean {
-  return keepAwake && !hasWakeLock && !dismissed && /Android/i.test(ua)
+  // the Nookdeck Android app keeps the screen on itself
+  return keepAwake && !hasWakeLock && !dismissed && /Android/i.test(ua) && !/NookdeckApp\//.test(ua)
 }
 export const awakeHintDismissed = (): boolean => store.get(K_AWAKE_HINT) === '1'
 export const dismissAwakeHint = (): void => store.set(K_AWAKE_HINT, '1')

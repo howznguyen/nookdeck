@@ -340,6 +340,8 @@ export interface Device {
   lastSeen?: string;
   /** lastSeen (or createdAt) + 365 days; a token unused for a year stops working. Refreshed on every connect. */
   expiresAt?: string;
+  /** set up over USB (Android, adb): the phone's adb serial, so setting the same phone up again replaces this entry */
+  usbSerial?: string;
 }
 
 export const HOME = process.env.NOOKDECK_HOME ?? join(userHome(), ".nookdeck");

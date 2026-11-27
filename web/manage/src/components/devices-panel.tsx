@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/knowns/select";
 import { Spinner } from "@/components/ui/knowns/spinner";
 import { ApiError, api } from "@/api";
 import { QrCode } from "@/components/qr";
+import { AndroidCard } from "@/components/android-card";
 import { getLanguage, localeTag, t, useLanguage } from "@/lib/i18n";
 import type { DeviceInfo, PairAddress, PairAddressKind, Pairing } from "@/types";
 
@@ -38,7 +39,10 @@ function when(iso?: string | number): string {
 export function DevicesPanel() {
   return (
     <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <PairingCard />
+      <div className="flex min-w-0 flex-col gap-4">
+        <PairingCard />
+        <AndroidCard />
+      </div>
       <DeviceList />
     </div>
   );

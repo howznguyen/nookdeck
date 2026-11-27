@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nookdeck</string>
+    <string name="connecting">Đang kết nối tới máy tính…</string>
+    <string name="searching">Đang tìm Nookdeck trong mạng Wi-Fi này…</string>
+    <string name="found">Máy tính tìm thấy trong Wi-Fi:</string>
+    <string name="none_found">Không tìm thấy máy tính. Nookdeck có đang chạy không, và điện thoại có cùng Wi-Fi không?</string>
+    <string name="address_hint">Địa chỉ hiện trên máy tính, ví dụ 192.168.1.10:7420</string>
+    <string name="open">Mở</string>
+    <string name="retry">Tìm lại</string>
+    <string name="usb_tip">Hoặc cắm điện thoại vào máy tính (đã bật Gỡ lỗi USB), rồi bấm Cài đặt ở tab Devices trên máy tính.</string>
+    <string name="bad_address">Địa chỉ đó không trả lời.</string>
+</resources>
