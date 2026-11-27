@@ -17,6 +17,12 @@ const BAR = 44;
  * layout, the current theme and the tile's sample data. Without sample data it shows the registry screenshot, and without
  * that a neutral placeholder with the renderer's name. The deck mounts only once the tile scrolls into view.
  */
+/** The frame scaled so the tile fills the box: the measured tile when there is one, else the assumed spot (PAD inside, BAR above). */
+export function frameStyle(IW: number, IH: number, boxW: number, fit: { x: number; y: number; w: number; h: number } | null): React.CSSProperties {
+  const scale = boxW / (fit ? fit.w : IW) || 0.3;
+  return { width: IW, height: IH + BAR, left: fit ? -fit.x * scale : 0, top: fit ? -fit.y * scale : -BAR * scale, transformOrigin: "0 0", transform: `scale(${scale})` };
+}
+
 export function TilePreview({ pluginId, widget, theme, screenshot, className }: { pluginId: string; widget: TileDef; theme?: Theme; screenshot?: string; className?: string }) {
   const [w, h] = parseSize(widget.sizes?.[0] ?? "2x1") ?? [2, 1];
   const IW = w * CELL + PAD * 2;
@@ -24,15 +30,17 @@ export function TilePreview({ pluginId, widget, theme, screenshot, className }: 
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const [seen, setSeen] = useState(false);
-  const [scale, setScale] = useState(0.3);
+  const [boxW, setBoxW] = useState(0);
+  /** where the deck really drew the tile, in the frame's own pixels (it sizes its grid to the frame, so it is measured, not assumed) */
+  const [fit, setFit] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const has = widget.preview !== undefined && widget.preview !== null;
 
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const fit = () => setScale(el.clientWidth / IW);
-    fit();
-    const ro = new ResizeObserver(fit);
+    const size = () => setBoxW(el.clientWidth);
+    size();
+    const ro = new ResizeObserver(size);
     ro.observe(el);
     const io = has ? new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setSeen(true); io?.disconnect(); } }) : null;
     io?.observe(el);
@@ -45,6 +53,19 @@ export function TilePreview({ pluginId, widget, theme, screenshot, className }: 
       pages: [{ id: "p", name: "", columns: w, rows: h, items: [{ id: "t", kind: "widget", widget: "plugin", x: 0, y: 0, ...(w > 1 || h > 1 ? { w, h } : {}), plugin: { id: pluginId, widget: widget.id } } as never] }],
     };
     frame.current?.contentWindow?.postMessage({ type: "pd-preview", layout, pageId: "p", selectedId: null, pluginData: { t: { render: widget.render, data: widget.preview } } }, DECK_ORIGIN);
+    // find the tile once the deck has drawn it (same origin as this page; a dev agent on another origin keeps the assumed spot)
+    let tries = 0;
+    const measure = () => {
+      try {
+        const el = frame.current?.contentDocument?.querySelector(".pd-tile");
+        const r = el?.getBoundingClientRect();
+        if (r && r.width > 0 && r.height > 0) { setFit({ x: r.left, y: r.top, w: r.width, h: r.height }); return; }
+      } catch {
+        return;
+      }
+      if (++tries < 40) setTimeout(measure, 100);
+    };
+    measure();
   }, [pluginId, widget, theme, w, h, IW, IH]);
 
   useEffect(() => {
@@ -55,11 +76,11 @@ export function TilePreview({ pluginId, widget, theme, screenshot, className }: 
   useEffect(() => { if (seen) post(); }, [seen, post]);
 
   return (
-    <div ref={box} className={className ?? "w-full"} style={{ aspectRatio: `${IW} / ${IH}` }}>
+    <div ref={box} className={className ?? "w-full"} style={{ aspectRatio: fit ? `${fit.w} / ${fit.h}` : `${IW} / ${IH}` }}>
       {has ? (
         <div className="relative size-full overflow-hidden rounded-xl border bg-black" aria-hidden>
           {seen && <iframe ref={frame} src={DECK_URL} title="" tabIndex={-1} className="pointer-events-none absolute left-0 top-0 border-0"
-            style={{ width: IW, height: IH + BAR, top: -BAR * scale, transformOrigin: "0 0", transform: `scale(${scale})` }} />}
+            style={frameStyle(IW, IH, boxW, fit)} />}
         </div>
       ) : screenshot ? (
         <img src={screenshot} alt="" loading="lazy" className="size-full rounded-xl border object-cover" />
