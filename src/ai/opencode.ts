@@ -111,13 +111,22 @@ export function readOpencodeSessions(file = opencodeDbPath(), now = Date.now(), 
   let db: Database | undefined;
   try {
     db = new Database(file, { readonly: true });
-    const cols = new Set((db.query("PRAGMA table_info(session)").all() as { name: string }[]).map((c) => c.name));
-    if (!cols.has("id")) return [];
-    const tok = [...cols].filter((c) => /^tokens_(input|output|reasoning)$/.test(c));
-    const q = `SELECT ${["id", "parent_id", "directory", "title", "model", "cost", "time_updated", "time_archived"].filter((c) => cols.has(c)).join(", ")}${tok.length ? ", " + tok.map((c) => `COALESCE(${c}, 0)`).join(" + ") + " AS tokens_total" : ""} FROM session ${cols.has("time_updated") ? "ORDER BY time_updated DESC" : ""} LIMIT 200`;
-    const rows = db.query(q).all() as Row[];
+    // 2.x writes new sessions to session_v2; session is the 1.x table: read both, newest first
+    const rows: Row[] = [];
+    for (const table of ["session_v2", "session"]) {
+      const cols = new Set((db.query(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name));
+      if (!cols.has("id")) continue;
+      const tok = [...cols].filter((c) => /^tokens_(input|output|reasoning)$/.test(c));
+      const q = `SELECT ${["id", "parent_id", "directory", "title", "model", "cost", "time_updated", "time_archived"].filter((c) => cols.has(c)).join(", ")}${tok.length ? ", " + tok.map((c) => `COALESCE(${c}, 0)`).join(" + ") + " AS tokens_total" : ""} FROM ${table} ${cols.has("time_updated") ? "ORDER BY time_updated DESC" : ""} LIMIT 200`;
+      rows.push(...(db.query(q).all() as Row[]));
+    }
+    rows.sort((a, b) => Number(b.time_updated ?? 0) - Number(a.time_updated ?? 0));
     const out: AiSession[] = [];
+    const seen = new Set<string>();
     for (const r of rows) {
+      const id = String(r.id);
+      if (seen.has(id)) continue; // an id in both tables: its newest copy decides, even when that copy is archived or a sub-agent
+      seen.add(id);
       if (r.parent_id || r.time_archived) continue; // sub-agent sessions and archived ones stay out
       const at = Number(r.time_updated ?? 0);
       if (!at || now - at >= windowMs) continue;
@@ -183,9 +192,13 @@ const LIMIT_WINDOWS: Record<string, { label: string; minutes: number }> = {
   rolling: { label: "5 hours", minutes: 300 }, weekly: { label: "7 days", minutes: 10080 }, monthly: { label: "30 days", minutes: 43200 },
 };
 
-/** `GET /api/experimental/usage/limits`: {rolling|weekly|monthly: {status, percent, resetsAt}} (or the same as an array with a name/window). */
+/**
+ * `GET /api/experimental/usage/limits`: {rolling|weekly|monthly: {status, percent, resetsAt}} (or the same as an array with a name/window).
+ * 2.4 wraps it: {location, data: {workspace, go: {rolling, weekly, monthly}, budgets}}; without a Go plan `go` is missing or null.
+ */
 export function parseLimits(j: any): QuotaWindow[] {
-  const entries: [string, any][] = Array.isArray(j) ? j.map((x: any) => [String(x?.window ?? x?.name ?? x?.id ?? ""), x]) : Object.entries(j?.limits ?? j ?? {});
+  const src = j?.data?.go ?? j?.limits ?? j;
+  const entries: [string, any][] = Array.isArray(src) ? src.map((x: any) => [String(x?.window ?? x?.name ?? x?.id ?? ""), x]) : Object.entries(src ?? {});
   const out: QuotaWindow[] = [];
   for (const [key, w] of entries) {
     const k = key.toLowerCase();

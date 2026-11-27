@@ -109,6 +109,24 @@ describe("OpenCode sessions from opencode.db (read-only)", () => {
     expect(() => ro.run("DELETE FROM session")).toThrow();
     ro.close();
   });
+  test("2.x keeps new sessions in session_v2: both tables are read, newest first, an id in both counts once and its newest copy decides", () => {
+    const d3 = tmp(); const f3 = join(d3, "o.db");
+    const x = new Database(f3);
+    const cols = "id TEXT, parent_id TEXT, directory TEXT, title TEXT, model TEXT, time_updated INTEGER, time_archived INTEGER";
+    x.run(`CREATE TABLE session (${cols})`); x.run(`CREATE TABLE session_v2 (${cols})`);
+    const legacy = x.prepare("INSERT INTO session VALUES (?,?,?,?,?,?,?)"), v2 = x.prepare("INSERT INTO session_v2 VALUES (?,?,?,?,?,?,?)");
+    legacy.run("a", null, "/p/legacy", "1.x chat", "m", NOW - 2 * 24 * 3600_000, null);
+    legacy.run("b", null, "/p/both", "in both", "m", NOW - 9_000, null); // the session_v2 copy is newer and wins
+    v2.run("b", null, "/p/both", "in both", "m", NOW - 1_000, null);
+    v2.run("c", null, "/p/new", "2.x chat", "m", NOW - 5_000, null);
+    v2.run("d", "c", "/p/new", "sub agent", "m", NOW - 500, null); // sub-agent sessions stay out
+    legacy.run("e", null, "/p/gone", "stale copy", "m", NOW - 3_000, null); // not archived in the old table...
+    v2.run("e", null, "/p/gone", "archived copy", "m", NOW - 800, NOW - 700); // ...but archived in the newer copy, which decides
+    x.close();
+    const s = OC.readOpencodeSessions(f3, NOW);
+    expect(s.map((r) => r.id)).toEqual(["b", "c", "a"]);
+    expect(s[0]!.updatedAt).toBe(NOW - 1_000);
+  });
 });
 
 describe("OpenCode 2.x local service", () => {
@@ -143,6 +161,18 @@ describe("OpenCode 2.x local service", () => {
     const b = await OC.fetchOpencodeQuota({ service: svc, fetch: (async () => new Response("no", { status: 403 })) as any, now: NOW });
     expect(b.windows).toEqual([]); expect(b.error).toBeTruthy();
     expect(await OC.activeOpencodeSessions((async () => { throw new Error("down"); }) as any, svc)).toEqual([]);
+  });
+  test("2.4 wraps the windows as {data: {go: {...}}}; without a Go plan there is nothing to show", async () => {
+    const svc = { url: "http://127.0.0.1:1" };
+    const win = (percent: number, at: number) => ({ percent, limited: false, resetsAt: at });
+    const go = { rolling: win(0, NOW + 1_000), weekly: win(11, NOW + 2_000), monthly: win(9, NOW + 3_000) };
+    const answer = (data: unknown) => (async () => Response.json({ location: { directory: "/x" }, data })) as any;
+    const a = await OC.fetchOpencodeQuota({ service: svc, fetch: answer({ workspace: { id: "w" }, go, budgets: [] }), now: NOW });
+    expect(a.windows.map((w) => [w.id, w.usedPercent])).toEqual([["rolling", 0], ["weekly", 11], ["monthly", 9]]);
+    expect(a.windows[1]).toMatchObject({ resetsAt: NOW + 2_000, windowMinutes: 10080 });
+    expect(a.error).toBeUndefined();
+    const b = await OC.fetchOpencodeQuota({ service: svc, fetch: answer({ workspace: { id: "w" }, go: null, budgets: [] }), now: NOW });
+    expect(b.windows).toEqual([]); expect(b.error).toContain("No usage limits");
   });
 });
 
