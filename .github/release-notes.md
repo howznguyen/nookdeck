@@ -1,3 +1,18 @@
+## Nookdeck 0.7.3
+
+Upgrading: use **Install and restart** in the app, run the install command below again, or `nookdeck update`.
+
+### New
+
+- **Report a problem shows the network.** The report now says where Nookdeck listens, the computer's networks, and every address that reached it since Nookdeck started: opened the page, wrong PINs, paired, connected as which phone. "Nobody" means the phone never reached the computer (another network, a router that keeps Wi-Fi devices apart, the firewall); "another network" means two routers. Addresses stay masked; each one says which network of the computer it shares. Windows is named by its real version (Windows 11, build 26100).
+- **No QR scanner on the phone?** The Devices tab shows the address to type in the phone's browser, in large print, under the QR code.
+- **Android: the screen turns off.** Browsers on Android cannot keep the screen on for a page on the local network, so the phone now says once how to make it stay on in its own settings.
+
+### Fixed
+
+- OpenCode 2.4: the usage limits of a Go plan and the recent sessions show again (thanks to @ngannguyen-nvn, #16).
+- Windows: an older Nookdeck (0.6.0 to 0.7.1) can still show "Unknown constant userprofile" when you uninstall it. Install this version over it first, then uninstall.
+
 ## Nookdeck 0.7.2
 
 Upgrading: use **Install and restart** in the app, run the install command below again, or `nookdeck update`.
