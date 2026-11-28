@@ -131,13 +131,16 @@ export const CORE_IDS = ["core.weather", "core.quota"] as const;
 /** Legacy widget kinds -> the core plugin tile they stand for (D7). Settings are flattened to string/number/boolean. */
 export function legacyRef(it: Layout["pages"][number]["items"][number]): PluginRef | null {
   if (it.kind !== "widget") return null;
-  if (it.widget === "weather") {
-    const w = it.weather ?? {};
+  // a weather-style clock shows the current conditions next to the time: the same core.weather data, only "now"
+  const wxClock = it.widget === "clock" && it.clock?.style === "weather";
+  if (it.widget === "weather" || wxClock) {
+    const w = (wxClock ? it.clock?.weather : it.weather) ?? {};
     const settings: NonNullable<PluginRef["settings"]> = {};
     if (w.source) settings.source = w.source;
     if (w.entity) settings.entity = w.entity;
     if (w.location) { settings.locationName = w.location.name; settings.lat = w.location.lat; settings.lon = w.location.lon; }
-    if (w.show) settings.show = w.show;
+    if (wxClock) settings.show = "now";
+    else if (w.show) settings.show = w.show;
     if (w.units) settings.units = w.units;
     return { id: "core.weather", widget: "weather", settings };
   }

@@ -113,7 +113,7 @@ export function ItemForm({ item, page, pages, accent, screenshotDefault, onChang
                 options={[...WIDGET_KINDS.filter((w) => w !== "entity" || item.widget === "entity"), ...(item.widget === "plugin" ? (["plugin"] as WidgetKind[]) : [])].map((w) => ({ value: w, label: t(WIDGET_LABEL[w] ?? w) }))} />
             </Field>
             {item.widget === "plugin" && <PluginWidgetForm item={item} plugins={plugins} onChange={(plugin) => set({ plugin })} />}
-            {item.widget === "clock" && <ClockOptionsForm value={item.clock} onChange={(clock) => set({ clock })} />}
+            {item.widget === "clock" && <ClockOptionsForm value={item.clock} onChange={(clock) => set({ clock })} weatherFields={(w, onW) => <WeatherForm value={w} onChange={onW} noShow />} />}
             {(METRIC_WIDGETS as readonly string[]).includes(item.widget) && (
               <MetricOptionsForm widget={item.widget as MetricWidget} value={item.metric} onChange={(metric) => set({ metric })} />
             )}
@@ -484,7 +484,8 @@ function HassFields({ action, onChange }: { action: Extract<Action, { type: "has
   );
 }
 
-function WeatherForm({ value, onChange }: { value: WeatherOptions | undefined; onChange: (w: WeatherOptions) => void }) {
+/** `noShow`: the weather-style clock only ever shows the current conditions, so it has no Display choice. */
+function WeatherForm({ value, onChange, noShow }: { value: WeatherOptions | undefined; onChange: (w: WeatherOptions) => void; noShow?: boolean }) {
   useLanguage();
   const v = value ?? {};
   const set = (p: Partial<WeatherOptions>) => {
@@ -505,10 +506,12 @@ function WeatherForm({ value, onChange }: { value: WeatherOptions | undefined; o
         </Field>
       )}
       {source !== "hass" && <CityField place={v.location} onChange={(location) => set({ location })} />}
-      <Field label={t("Display")} id="f-w-show">
-        <Select id="f-w-show" value={v.show ?? "auto"} onChange={(e) => set({ show: e.target.value as WeatherOptions["show"] })}
-          options={[{ value: "auto", label: t("Automatic by tile size") }, { value: "now", label: t("Now") }, { value: "hourly", label: t("Hourly") }, { value: "daily", label: t("Daily") }]} />
-      </Field>
+      {!noShow && (
+        <Field label={t("Display")} id="f-w-show">
+          <Select id="f-w-show" value={v.show ?? "auto"} onChange={(e) => set({ show: e.target.value as WeatherOptions["show"] })}
+            options={[{ value: "auto", label: t("Automatic by tile size") }, { value: "now", label: t("Now") }, { value: "hourly", label: t("Hourly") }, { value: "daily", label: t("Daily") }]} />
+        </Field>
+      )}
       <Field label={t("Unit")} id="f-w-units">
         <Select id="f-w-units" value={v.units ?? ""} onChange={(e) => set({ units: (e.target.value || undefined) as WeatherOptions["units"] })}
           options={[{ value: "", label: t("Use the theme unit") }, { value: "metric", label: "°C, km/h" }, { value: "imperial", label: "°F, mph" }]} />

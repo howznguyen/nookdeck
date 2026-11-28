@@ -21,7 +21,7 @@ export type Action =
 
 export type WidgetKind = 'clock' | 'cpu' | 'gpu' | 'memory' | 'uptime' | 'load' | 'network' | 'nowplaying' | 'quota' | 'sessions' | 'entity' | 'weather' | 'value' | 'notifications' | 'plugin' | 'onair'
 
-export type ClockStyle = 'digital' | 'flip' | 'analog' | 'minimal' | 'word' | 'world'
+export type ClockStyle = 'digital' | 'flip' | 'analog' | 'minimal' | 'word' | 'world' | 'weather' | 'lunar' | 'bloc' | 'segment' | 'ring' | 'stack' | 'ticks' | 'dither'
 export interface ClockOptions {
   style?: ClockStyle
   seconds?: boolean
@@ -30,6 +30,8 @@ export interface ClockOptions {
   timeZone?: string
   zones?: string[]
   label?: string
+  /** weather style: where to read the weather (the agent serves it as a core.weather tile keyed by the clock's id) */
+  weather?: WeatherOptions
 }
 
 export type QuotaChart = 'auto' | 'bars' | 'rings' | 'gauge' | 'meter' | 'number' | 'history'
@@ -61,12 +63,53 @@ export interface PushOptions {
   label?: string
   unit?: string
 }
+/**
+ * The agent's weather answer (src/weather.ts WeatherData, keep the two in step) and the older deck shape it replaced (hourly[].t,
+ * daily[].t/high/low, unit). The tile reads both through weather-logic normWeather.
+ */
 export interface WeatherData {
-  now: { temp: number; condition?: string | number; text?: string; high?: number; low?: number; humidity?: number; wind?: number }
-  hourly?: { t: number | string; temp: number; condition?: string | number }[]
-  daily?: { t: number | string; high: number; low: number; condition?: string | number }[]
+  now: {
+    temp: number
+    feels?: number
+    condition?: string | number
+    /** WMO weather code */
+    code?: number
+    icon?: string
+    text?: string
+    high?: number
+    low?: number
+    humidity?: number
+    wind?: number
+    /** degrees the wind comes from, 0 = north */
+    windDir?: number
+    /** the source's wind unit ("km/h", "m/s", "mph"); missing = from `units` */
+    windUnit?: string
+    /** US AQI (Open-Meteo air quality), missing when it could not be read */
+    aqi?: number
+    isDay?: boolean
+  }
+  hourly?: { time?: string; t?: number | string; temp: number; condition?: string | number; code?: number; icon?: string }[]
+  daily?: {
+    date?: string
+    t?: number | string
+    min?: number
+    max?: number
+    high?: number
+    low?: number
+    condition?: string | number
+    code?: number
+    icon?: string
+    /** precipitation, mm */
+    rain?: number
+    /** chance of precipitation, % */
+    pop?: number
+    uv?: number
+  }[]
   source?: string
-  /** unit the numbers are in ('C' | 'F' | '°C' ...); missing = the unit that was requested (open-meteo) or C */
+  /** agent: the unit every temperature is in */
+  tempUnit?: 'c' | 'f'
+  units?: 'metric' | 'imperial'
+  /** older shape: unit the numbers are in ('C' | 'F' | '°C' ...); missing = the unit that was requested (open-meteo) or C */
   unit?: string
   location?: string
   updatedAt?: number | string
@@ -288,6 +331,12 @@ export interface Stats {
   volume?: { level: number; muted: boolean } | null
   /** graphics card; absent = unknown (Linux, read failed) */
   gpu?: { util: number; memUsed?: number; memTotal?: number; temp?: number; name?: string }
+  /** logical CPU count (older agents: absent) */
+  ncpu?: number
+  /** per-core busy percent, same order as the OS lists the cores */
+  cores?: number[]
+  /** file cache and swap in bytes, when the OS tells (Windows: absent) */
+  mem?: { cached?: number; swapUsed?: number; swapTotal?: number }
 }
 
 export type MediaCommand = 'playpause' | 'next' | 'previous' | 'resume' | 'open'

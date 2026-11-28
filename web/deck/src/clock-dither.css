@@ -1,0 +1,44 @@
+/* dither clock style (clocks.tsx Dither): a monospace character grid over the whole tile.
+   Safari 12: no flex gap, no clamp(). The grid is placed absolutely in the tile (.pd-tile is position: relative). */
+/* .pd-dt stays unpositioned so the grid measures and fills the tile, not the padded content box */
+.pd-dt__g {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  white-space: pre;
+  text-align: left;
+  font-family: ui-monospace, Menlo, 'SF Mono', 'Roboto Mono', 'Droid Sans Mono', 'DejaVu Sans Mono', 'Courier New', monospace;
+  font-weight: 600;
+  letter-spacing: 0;
+  -webkit-font-feature-settings: 'liga' 0, 'calt' 0;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+.pd-dt__r {
+  display: block;
+  height: 1em;
+  overflow: hidden;
+}
+/* background noise: muted and dim, so the time pops */
+.pd-dt__k0 {
+  color: var(--pd-muted);
+  opacity: 0.3;
+}
+/* the strokes: full text ink, bold (the widget colour when one is set, inline) */
+.pd-dt__k1 {
+  color: inherit;
+  font-weight: 800;
+}
+/* the 1-cell dithered falloff round the strokes */
+.pd-dt__k3 {
+  color: inherit;
+  opacity: 0.7;
+}
+/* caption and date rows */
+.pd-dt__k2 {
+  color: var(--pd-muted);
+  font-weight: 500;
+}

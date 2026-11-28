@@ -7,8 +7,10 @@
 .pd-root {
   /* tokens (Knowns look); layout.theme overrides --pd-accent/-bg/-tile/-radius/-gap/-font inline */
   --pd-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --pd-ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
   --pd-dur-fast: 120ms;
   --pd-dur: 180ms;
+  --pd-dur-travel: 420ms;
   --pd-bg: #0b0b0d;
   --pd-tile: #16161a;
   --pd-surface-2: #1b1b1f;
@@ -1510,31 +1512,41 @@
   overflow: hidden;
   background-size: cover;
   background-position: center;
-  box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.6);
+  /* kn-visual 3-4: a hairline ring and shadow-xs at most */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 .pd-npc--disc {
   position: relative;
   border-radius: 50% !important;
-  box-shadow: 0 10px 26px -14px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.16), inset 0 0 0 5px rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.28);
+  /* kn-motion 2: constant motion is linear; it is the one "playing" signal of the tile, so it only runs while playing */
+  -webkit-animation: pd-vinyl-spin 8s linear infinite;
   animation: pd-vinyl-spin 8s linear infinite;
+  -webkit-animation-play-state: paused;
   animation-play-state: paused;
   will-change: transform;
 }
+/* the spindle hole: small, in the tile colour on a hairline, not a big black-and-white label */
 .pd-npc--disc::after {
   content: "";
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 30%;
-  height: 30%;
+  width: 16%;
+  height: 16%;
+  -webkit-transform: translate(-50%, -50%);
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, rgba(8, 10, 14, 0.96) 0 26%, rgba(236, 238, 244, 0.92) 28% 100%);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  background: var(--pd-tile, #16161a);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
-.pd-npc--spin { animation-play-state: running; }
+.pd-npc--spin {
+  -webkit-animation-play-state: running;
+  animation-play-state: running;
+}
+@-webkit-keyframes pd-vinyl-spin { from { -webkit-transform: rotate(0deg); } to { -webkit-transform: rotate(360deg); } }
 @keyframes pd-vinyl-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .pd-npc--disc { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .pd-npc--disc { -webkit-animation: none; animation: none; } }
 .pd-npc--empty {
   background: rgba(139, 139, 148, 0.16);
   color: var(--pd-muted);
@@ -1613,8 +1625,8 @@
   background: var(--pd-accent);
   -webkit-transform-origin: bottom;
   transform-origin: bottom;
-  -webkit-transition: -webkit-transform 0.15s ease-out, opacity 0.15s ease-out;
-  transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+  -webkit-transition: -webkit-transform var(--pd-dur-fast) var(--pd-ease-out), opacity var(--pd-dur-fast) var(--pd-ease-out);
+  transition: transform var(--pd-dur-fast) var(--pd-ease-out), opacity var(--pd-dur-fast) var(--pd-ease-out);
 }
 .pd-npl__col {
   -webkit-flex: 1;
@@ -1664,6 +1676,18 @@
 .pd-npl__fill--acc {
   background: var(--pd-accent);
 }
+/* the progress fill scales instead of resizing (kn-motion 4) and follows the clock: linear, as long as its 250 ms tick */
+.pd-npl__fill--prog {
+  width: 100%;
+  -webkit-transform-origin: 0 50%;
+  transform-origin: 0 50%;
+  -webkit-transition: -webkit-transform 250ms linear;
+  transition: transform 250ms linear;
+}
+.pd-npl--idle .pd-npl__fill--prog {
+  -webkit-transition: none;
+  transition: none;
+}
 .pd-npl__times {
   display: -webkit-flex;
   display: flex;
@@ -1690,7 +1714,14 @@
   border-radius: 50%;
   color: var(--pd-bg);
   background: var(--pd-text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.4);
+  -webkit-transition: -webkit-transform var(--pd-dur) var(--pd-ease-out);
+  transition: transform var(--pd-dur) var(--pd-ease-out);
+}
+.pd-root .pd-npl__play:active {
+  -webkit-transform: scale(0.97);
+  transform: scale(0.97);
+  -webkit-transition-duration: var(--pd-dur-fast);
+  transition-duration: var(--pd-dur-fast);
 }
 .pd-root .pd-npl__ghost {
   -webkit-flex: none;
@@ -1702,7 +1733,12 @@
   border-radius: 50%;
   color: var(--pd-muted);
 }
-.pd-root .pd-npl__ghost:active {
+.pd-root .pd-npl__ghost {
+  -webkit-transition: color var(--pd-dur-fast) var(--pd-ease-out), background-color var(--pd-dur-fast) var(--pd-ease-out);
+  transition: color var(--pd-dur-fast) var(--pd-ease-out), background-color var(--pd-dur-fast) var(--pd-ease-out);
+}
+.pd-root .pd-npl__ghost:active,
+.pd-root .pd-npl__ghost--on {
   color: var(--pd-text);
   background: rgba(139, 139, 148, 0.2);
 }
@@ -1741,8 +1777,8 @@
   height: 22px;
   margin: -11px 0 0 -11px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  background: var(--pd-text);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.3);
   pointer-events: none;
 }
 .pd-npl__vt {
@@ -1813,6 +1849,14 @@
   display: -webkit-flex;
   display: flex;
   align-items: center;
+  -webkit-animation: pd-np-pop var(--pd-dur-fast) var(--pd-ease-out);
+  animation: pd-np-pop var(--pd-dur-fast) var(--pd-ease-out);
+}
+@-webkit-keyframes pd-np-pop { from { opacity: 0; } }
+@keyframes pd-np-pop { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .pd-npl__pop { -webkit-animation: none; animation: none; }
+  .pd-npl__fill--prog, .pd-root .pd-npl__play { -webkit-transition: none; transition: none; }
 }
 
 /* ---------- Usage meter + sessions rows (Knowns UI ports) ---------- */
@@ -2422,18 +2466,29 @@
   color: var(--pd-muted);
 }
 
-/* flip */
+/* flip: one split-flap card per digit (clocks.tsx FlipDigit). The flap turns 0 -> -180deg around its bottom edge. */
 .pd-fl__row {
   display: -webkit-flex;
   display: flex;
   align-items: center;
 }
+.pd-fl__grp {
+  display: -webkit-flex;
+  display: flex;
+}
+.pd-fl__ap {
+  margin-left: 6px;
+  font-weight: 600;
+  color: var(--pd-muted);
+  -webkit-align-self: flex-start;
+  align-self: flex-start;
+}
+.pd-fl__ap.pd-ck__pre {
+  margin: 0 6px 0 0;
+}
 .pd-fl {
   position: relative;
-  -webkit-perspective: 400px;
-  perspective: 400px;
-  border-radius: 8px;
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 .pd-fl__h {
@@ -2442,7 +2497,9 @@
   width: 100%;
   height: 50%;
   overflow: hidden;
-  background: rgba(139, 139, 148, 0.16);
+  /* fully opaque card: the grey tint over the tile colour over the page colour, so a flap never shows the digit behind it */
+  background-color: var(--pd-bg, #0b0b0d);
+  background-image: linear-gradient(rgba(139, 139, 148, 0.16), rgba(139, 139, 148, 0.16)), linear-gradient(var(--pd-tile, #18181b), var(--pd-tile, #18181b));
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
@@ -2452,75 +2509,86 @@
 }
 .pd-fl__top {
   top: 0;
-  border-radius: 8px 8px 0 0;
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.5);
 }
 .pd-fl__bot {
   bottom: 0;
-  border-radius: 0 0 8px 8px;
-  background: rgba(139, 139, 148, 0.24);
+  background-image: linear-gradient(rgba(139, 139, 148, 0.24), rgba(139, 139, 148, 0.24)), linear-gradient(var(--pd-tile, #18181b), var(--pd-tile, #18181b));
 }
 .pd-fl__bot span {
   -webkit-transform: translateY(-50%);
   transform: translateY(-50%);
+}
+/* shading overlay of a half: darkens the front as it turns, lightens the back as it lands, shades the lower half under the falling flap */
+.pd-fl__sh {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
 }
 .pd-fl__line {
   position: absolute;
   left: 0;
   right: 0;
   top: 50%;
+  z-index: 3;
   height: 1px;
   margin-top: -0.5px;
-  background: rgba(0, 0, 0, 0.55);
+  /* the split between the halves: a hairline of the page colour, not a black bar */
+  background: var(--pd-bg, #0b0b0d);
+  opacity: 0.9;
 }
-.pd-fl__fold {
+.pd-fl__flap {
   position: absolute;
   left: 0;
+  top: 0;
+  z-index: 2;
   width: 100%;
   height: 50%;
+  -webkit-transform-origin: 50% 100%;
+  transform-origin: 50% 100%;
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+  -webkit-transform: rotateX(0deg);
+  transform: rotateX(0deg);
+  will-change: transform;
 }
-.pd-fl__fold .pd-fl__h {
-  top: 0;
-  left: 0;
-}
-.pd-fl__fold--t {
-  top: 0;
-  z-index: 2;
-  -webkit-transform-origin: bottom;
-  transform-origin: bottom;
-  -webkit-animation: pd-fold-t 0.26s ease-in forwards;
-  animation: pd-fold-t 0.26s ease-in forwards;
-}
-.pd-fl__fold--b {
-  bottom: 0;
-  z-index: 2;
-  top: 50%;
-  -webkit-transform-origin: top;
-  transform-origin: top;
-  -webkit-transform: rotateX(90deg);
-  transform: rotateX(90deg);
-  -webkit-animation: pd-fold-b 0.26s ease-out 0.26s forwards;
-  animation: pd-fold-b 0.26s ease-out 0.26s forwards;
-}
-.pd-fl__fold--b .pd-fl__h {
+.pd-fl__face {
   top: 0;
   bottom: auto;
+  height: 100%;
 }
-@-webkit-keyframes pd-fold-t {
-  from { -webkit-transform: rotateX(0deg); }
-  to { -webkit-transform: rotateX(-90deg); }
+.pd-fl__back {
+  -webkit-transform: rotateX(180deg);
+  transform: rotateX(180deg);
 }
-@keyframes pd-fold-t {
-  from { transform: rotateX(0deg); }
-  to { transform: rotateX(-90deg); }
+.pd-fl__back .pd-fl__sh {
+  opacity: 0.25;
 }
-@-webkit-keyframes pd-fold-b {
-  from { -webkit-transform: rotateX(90deg); }
-  to { -webkit-transform: rotateX(0deg); }
+.pd-fl--go .pd-fl__flap {
+  -webkit-transform: rotateX(-180deg);
+  transform: rotateX(-180deg);
+  /* kn-motion: a digit that rolls is travel (420 ms); it is already on screen and moves, so ease-inout */
+  -webkit-transition: -webkit-transform var(--pd-dur-travel, 420ms) var(--pd-ease-inout, cubic-bezier(0.65, 0, 0.35, 1));
+  transition: transform var(--pd-dur-travel, 420ms) var(--pd-ease-inout, cubic-bezier(0.65, 0, 0.35, 1));
 }
-@keyframes pd-fold-b {
-  from { transform: rotateX(90deg); }
-  to { transform: rotateX(0deg); }
+.pd-fl--go .pd-fl__face .pd-fl__sh {
+  opacity: 0.35;
+  -webkit-transition: opacity 210ms var(--pd-ease-inout, cubic-bezier(0.65, 0, 0.35, 1));
+  transition: opacity 210ms var(--pd-ease-inout, cubic-bezier(0.65, 0, 0.35, 1));
+}
+.pd-fl--go .pd-fl__back .pd-fl__sh {
+  opacity: 0;
+  -webkit-transition: opacity 210ms var(--pd-ease-inout, cubic-bezier(0.65, 0, 0.35, 1)) 210ms;
+  transition: opacity 210ms var(--pd-ease-inout, cubic-bezier(0.65, 0, 0.35, 1)) 210ms;
+}
+.pd-fl--go > .pd-fl__bot .pd-fl__sh {
+  opacity: 0.18;
+  -webkit-transition: opacity 280ms var(--pd-ease-inout, cubic-bezier(0.65, 0, 0.35, 1)) 100ms;
+  transition: opacity 280ms var(--pd-ease-inout, cubic-bezier(0.65, 0, 0.35, 1)) 100ms;
 }
 
 /* analog */
@@ -2598,6 +2666,363 @@
   font-weight: 300;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* newer clock styles: weather, lunar, bloc, segment, ring, stack (clocks.tsx). kn-visual: one primary, one secondary size,
+   medium / semibold text weights over light numbers, muted ink for the secondary, hairlines, the accent used once. */
+.pd-ck {
+  min-width: 0;
+}
+.pd-ck__time {
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pd-ck__sec {
+  margin-left: 0.3em;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--pd-muted);
+}
+.pd-ck__pre {
+  margin: 0 0.3em 0 0;
+  letter-spacing: 0;
+}
+.pd-ck__wxr {
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 1.3;
+}
+.pd-ck__wxr .pd-wx__g {
+  margin-right: 6px;
+}
+.pd-ck__temp {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pd-ck__wxnone {
+  font-weight: 500;
+  color: var(--pd-muted);
+}
+.pd-ck__note {
+  margin-left: 0.6em;
+  font-weight: 500;
+  color: var(--pd-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pd-ck__sub,
+.pd-ck__lun {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.35;
+  margin-top: 2px;
+  font-weight: 500;
+}
+.pd-ck__sub {
+  color: var(--pd-muted);
+}
+.pd-ck__chip {
+  display: inline-block;
+  padding: 2px 9px;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 1px solid var(--pd-border);
+  border-radius: 999px;
+  color: var(--pd-muted);
+  font-weight: 500;
+  line-height: 1.3;
+}
+.pd-ck__chip--accent {
+  border-color: currentColor;
+}
+
+/* bloc: the tear-off calendar page */
+.pd-bl {
+  -webkit-flex: 1;
+  flex: 1;
+  min-height: 0;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pd-bl__head {
+  -webkit-flex: none;
+  flex: none;
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--pd-border);
+  color: var(--pd-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pd-bl__hl {
+  margin-left: 8px;
+  overflow: hidden;
+  font-size: 0.85em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pd-bl__body {
+  -webkit-flex: 1;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.pd-bl__n {
+  -webkit-flex: none;
+  flex: none;
+  font-weight: 600;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.pd-bl__wd {
+  -webkit-flex: none;
+  flex: none;
+  line-height: 1.2;
+  margin-top: 2px;
+  font-weight: 500;
+  color: var(--pd-muted);
+  white-space: nowrap;
+}
+.pd-bl__chip {
+  -webkit-flex: none;
+  flex: none;
+  max-width: 100%;
+  display: -webkit-flex;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.pd-bl__low {
+  -webkit-flex: none;
+  flex: none;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--pd-border);
+  display: -webkit-flex;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.pd-bl__cc {
+  min-width: 0;
+  text-align: left;
+  color: var(--pd-muted);
+  white-space: nowrap;
+}
+.pd-bl__t {
+  color: var(--pd-text);
+  font-variant-numeric: tabular-nums;
+}
+.pd-bl__lun {
+  -webkit-flex: none;
+  flex: none;
+  margin-left: 12px;
+  text-align: right;
+  color: var(--pd-muted);
+  white-space: nowrap;
+}
+.pd-bl__ln {
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.pd-bl__hours {
+  -webkit-flex: none;
+  flex: none;
+  margin-top: 10px;
+  width: 100%;
+  color: var(--pd-muted);
+  font-weight: 500;
+}
+.pd-bl__ht {
+  line-height: 1.35;
+  margin-bottom: 4px;
+  color: var(--pd-text);
+}
+.pd-bl__hg {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+}
+.pd-bl__hg span {
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.pd-bl--strip {
+  -webkit-flex-direction: row;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+}
+.pd-bl__sl {
+  margin-left: 12px;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  line-height: 1.3;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.pd-bl__sl b {
+  font-weight: 600;
+}
+.pd-bl__sl i {
+  font-style: normal;
+  color: var(--pd-muted);
+}
+
+/* segment: 7-segment LED digits */
+.pd-sg {
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+}
+.pd-sg__g {
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+}
+.pd-sg__d,
+.pd-sg__sp {
+  display: block;
+  -webkit-flex: none;
+  flex: none;
+}
+.pd-sg__col {
+  position: relative;
+  display: block;
+  -webkit-flex: none;
+  flex: none;
+}
+.pd-sg__col i {
+  position: absolute;
+  left: 50%;
+  border-radius: 50%;
+}
+/* the colon blinks with the seconds: a clock tick, so steps and as long as the tick (kn-motion: a bar that follows a clock) */
+.pd-sg__col--blink {
+  -webkit-animation: pd-sg-blink 1s steps(1, end) infinite;
+  animation: pd-sg-blink 1s steps(1, end) infinite;
+}
+.pd-sg__ap {
+  margin-left: 0.5em;
+  font-weight: 600;
+  -webkit-align-self: flex-start;
+  align-self: flex-start;
+}
+.pd-sg__ap.pd-ck__pre {
+  margin: 0 0.5em 0 0;
+}
+@-webkit-keyframes pd-sg-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@keyframes pd-sg-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* ring */
+.pd-rg {
+  position: relative;
+  -webkit-flex: none;
+  flex: none;
+}
+.pd-rg svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+.pd-rg__in {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.pd-rg__in .pd-ck__sub {
+  margin-top: 6px;
+}
+
+/* stack */
+.pd-st__n {
+  position: relative;
+  font-weight: 300;
+  line-height: 0.88;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pd-st__ap,
+.pd-st__s {
+  position: absolute;
+  left: 100%;
+  margin-left: 6px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1;
+  color: var(--pd-muted);
+}
+.pd-st__ap {
+  top: 0.12em;
+}
+.pd-st__s {
+  bottom: 0.12em;
+}
+.pd-st__ap--pre {
+  left: auto;
+  right: 100%;
+  margin: 0 6px 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-sg__col--blink {
+    -webkit-animation: none;
+    animation: none;
+  }
+  .pd-rg circle,
+  .pd-fl__flap,
+  .pd-fl__sh {
+    -webkit-transition: none !important;
+    transition: none !important;
+  }
 }
 
 /* ---------- Metric charts (metric-charts.tsx) ---------- */
@@ -2685,42 +3110,28 @@
 /* ---------- Now playing: last-played and empty states (same layouts as playing; see now-playing.tsx) ---------- */
 /* placeholder artwork: a brand-tinted record (CSS rings on a soft gradient), never a grey circle */
 .pd-npc--ph {
-  color: #67e8f9;
-  background-color: #0c2a33;
-  background-image:
-    radial-gradient(circle at 50% 50%, transparent 0, transparent 30%, rgba(34, 211, 238, 0.24) 31%, transparent 33%, transparent 46%, rgba(34, 211, 238, 0.16) 47%, transparent 49%),
-    linear-gradient(135deg, #14495b, #0b1d25);
-  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.22);
-}
-[data-pd-theme="light"] .pd-npc--ph {
-  color: #0e7490;
-  background-color: #cffafe;
-  background-image:
-    radial-gradient(circle at 50% 50%, transparent 0, transparent 30%, rgba(8, 145, 178, 0.3) 31%, transparent 33%, transparent 46%, rgba(8, 145, 178, 0.2) 47%, transparent 49%),
-    linear-gradient(135deg, #cffafe, #a5f3fc);
-  box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.28);
+  color: var(--pd-muted);
+  background-color: rgba(139, 139, 148, 0.12);
+  background-image: radial-gradient(circle at 50% 50%, transparent 0, transparent 30%, rgba(139, 139, 148, 0.22) 31%, transparent 33%, transparent 46%, rgba(139, 139, 148, 0.16) 47%, transparent 49%);
+  box-shadow: inset 0 0 0 1px var(--pd-border);
 }
 .pd-npl__chip {
   display: inline-block;
   max-width: 100%;
   box-sizing: border-box;
-  margin-bottom: 3px;
-  padding: 1px 7px;
+  margin-bottom: 4px;
+  padding: 0 7px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   vertical-align: top;
-  border-radius: 9px;
-  font-size: 10.5px;
-  font-weight: 600;
-  line-height: 1.5;
-  letter-spacing: 0.02em;
-  color: #67e8f9;
-  background: rgba(34, 211, 238, 0.14);
-}
-[data-pd-theme="light"] .pd-npl__chip {
-  color: #0e7490;
-  background: rgba(8, 145, 178, 0.12);
+  /* a neutral hairline pill: "last played" is a fact, not a status colour (kn-visual 3, 7) */
+  border: 1px solid var(--pd-border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--pd-muted);
 }
 /* narrow row (2x1): the title may use two lines instead of cutting to a few letters */
 .pd-npl__title--two {
@@ -3210,45 +3621,9 @@
   display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
   color: var(--pd-text); text-align: left;
 }
-.pd-wx { justify-content: space-between; }
-.pd-wx--empty { justify-content: center; align-items: center; }
-.pd-wx--stale { opacity: 0.75; }
+/* the weather tile itself lives in weather.css (weather-tile.tsx); the glyph below is the weather clock's (WxGlyph) */
 .pd-wx__g { -webkit-flex: none; flex: none; display: inline-block; text-align: center; }
 .pd-wx__g .pd-svg { display: block; }
-.pd-wx__t { display: block; font-weight: 300; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-.pd-wx__s { display: block; margin-top: 2px; font-size: 12px; line-height: 1.3; color: var(--pd-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.pd-wx__c { color: var(--pd-text); opacity: 0.85; font-weight: 500; }
-.pd-wx__cur { display: block; min-width: 0; }
-.pd-wx__top { display: -webkit-flex; display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 6px; }
-.pd-wx__place { min-width: 0; margin-top: 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; color: var(--pd-text); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pd-wx__tiny { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.pd-wx__tiny .pd-wx__t { margin-top: 6px; letter-spacing: -0.02em; font-weight: 400; }
-.pd-wx__hl1 { display: block; margin-top: 4px; font-size: 10px; line-height: 1.2; color: var(--pd-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.pd-wx__rowm { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; align-items: center; min-width: 0; }
-.pd-wx__rowm .pd-wx__t { margin-left: 10px; }
-.pd-wx__rt { display: block; -webkit-flex: 1; flex: 1; min-width: 0; margin-left: 12px; }
-.pd-wx__split { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; align-items: center; min-height: 0; }
-.pd-wx__split--top { -webkit-flex: none; flex: none; }
-.pd-wx__sl { -webkit-flex: 0 0 38%; flex: 0 0 38%; min-width: 0; padding-right: 12px; box-sizing: border-box; }
-.pd-wx__sr { -webkit-flex: 1; flex: 1; min-width: 0; }
-.pd-wx__hr { display: -webkit-flex; display: flex; justify-content: space-between; padding-top: 8px; border-top: 1px solid rgba(139, 139, 148, 0.2); }
-.pd-wx__sr .pd-wx__hr { border-top: 0; padding-top: 0; }
-.pd-wx__h { display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; align-items: center; -webkit-flex: 1; flex: 1; min-width: 0; }
-.pd-wx__hl { display: block; margin-bottom: 4px; font-size: 11px; line-height: 1.2; color: var(--pd-muted); white-space: nowrap; }
-.pd-wx__h b { margin-top: 4px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.pd-wx__slim { display: -webkit-flex; display: flex; align-items: center; margin-bottom: 8px; min-width: 0; }
-.pd-wx__slim .pd-wx__t { margin-left: 10px; }
-.pd-wx__dy { display: block; }
-.pd-wx--full .pd-wx__dy, .pd-wx--tall .pd-wx__dy { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; justify-content: flex-end; padding-top: 8px; border-top: 1px solid rgba(139, 139, 148, 0.2); margin-top: 8px; }
-.pd-wx--tall .pd-wx__dy { border-top: 0; padding-top: 0; justify-content: space-between; }
-.pd-wx__d { display: -webkit-flex; display: flex; align-items: center; height: 28px; font-size: 13px; font-variant-numeric: tabular-nums; }
-.pd-wx__dn { width: 44px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--pd-text-2); -webkit-flex: none; flex: none; text-align: left; }
-.pd-wx__d .pd-wx__g { margin-right: 10px; }
-.pd-wx__lo, .pd-wx__hi { width: 30px; text-align: right; -webkit-flex: none; flex: none; }
-.pd-wx__lo { color: var(--pd-muted); }
-.pd-wx__bar { -webkit-flex: 1; flex: 1; position: relative; height: 4px; margin: 0 8px; border-radius: 2px; background: rgba(139, 139, 148, 0.2); }
-.pd-wx__bar i { position: absolute; top: 0; bottom: 0; border-radius: 2px; background: -webkit-linear-gradient(left, #60a5fa, #fbbf24); background: linear-gradient(90deg, #60a5fa, #fbbf24); }
-.pd-wx__src { display: block; margin-top: 6px; font-size: 9px; color: var(--pd-muted); opacity: 0.7; text-align: left; }
 .pd-vl { justify-content: center; }
 .pd-vl--stale { opacity: 0.5; }
 .pd-vl__lb { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pd-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3929,3 +4304,171 @@
 .pd-sleep { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 200; background: #000; cursor: pointer; -webkit-tap-highlight-color: transparent; -webkit-animation: pd-sleep-in 0.8s ease-out; animation: pd-sleep-in 0.8s ease-out; }
 @-webkit-keyframes pd-sleep-in { from { opacity: 0; } }
 @keyframes pd-sleep-in { from { opacity: 0; } }
+
+/* ---------- Now playing, tall layout (square or upright tiles such as 4x4): centred, the disc on top ---------- */
+.pd-npl--tall {
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  padding: 16px;
+  text-align: center;
+}
+.pd-npl__art {
+  position: relative;
+  display: -webkit-flex;
+  display: flex;
+  justify-content: center;
+}
+.pd-npl__art .pd-npc { position: relative; z-index: 1; }
+.pd-npl--tall .pd-npl__txt { margin: 16px 0 0; }
+.pd-npl--tall .pd-npl__src { margin-bottom: 2px; }
+.pd-npl--tall .pd-npl__artist { margin-top: 3px; }
+.pd-npl--tall .pd-npl__tr { margin-top: 0; }
+.pd-npl__lvc { position: absolute; top: 16px; right: 16px; }
+.pd-npl__prog--row {
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  margin-top: 0;
+}
+.pd-npl__prog--row .pd-npl__scrub { -webkit-flex: 1; flex: 1; min-width: 0; margin: 0 10px; }
+.pd-npl__t {
+  -webkit-flex: none;
+  flex: none;
+  min-width: 34px;
+  font-size: 12px;
+  color: var(--pd-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pd-npl__t:first-child { text-align: left; }
+.pd-npl__t:last-child { text-align: right; }
+.pd-root .pd-npl--tall .pd-npl__tr3 .pd-npl__play { margin: 0 16px; }
+/* the tall layout reads like a player card: no app label crowding the disc */
+.pd-npl--tall .pd-npl__src { display: none; }
+/* snug tall (260 to 340 px high, e.g. 3x3): tighter padding and gaps on the same 4 px grid, a one-line title */
+.pd-npl--snug { padding: 12px; }
+.pd-npl--snug .pd-npl__txt { margin-top: 10px; }
+.pd-root .pd-npl--snug .pd-npl__tr3 .pd-npl__play { margin: 0 12px; }
+.pd-npl--snug .pd-npl__lvc { top: 12px; right: 12px; }
+/* xs tall (220 to 260 px wide, a 3x3 on the S20): the same card shrunk, the speaker in the top right corner, the level bars top left */
+.pd-npl--xs .pd-npl__txt { margin-top: 8px; }
+.pd-root .pd-npl--xs .pd-npl__tr3 .pd-npl__play { margin: 0 6px; }
+.pd-npl--xs .pd-npl__tr { -webkit-justify-content: center; justify-content: center; }
+.pd-npl--xs .pd-npl__lvc { right: auto; left: 12px; }
+.pd-npl__xsv { position: absolute; top: 8px; right: 8px; z-index: 2; }
+
+/* ---------- Now playing, square layout (2x2): the cover on top, play on its corner, the title centred under it ---------- */
+.pd-npl--square {
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  text-align: center;
+}
+.pd-npl__sq {
+  position: relative;
+  -webkit-flex: none;
+  flex: none;
+}
+.pd-npl__sqp {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+}
+.pd-root .pd-npl__sqp .pd-npl__play {
+  margin: 0;
+  /* a hairline of the tile colour keeps the button apart from the artwork under it */
+  box-shadow: 0 0 0 3px var(--pd-tile, #16161a);
+}
+.pd-npl--square .pd-npl__txt {
+  -webkit-flex: none;
+  flex: none;
+  width: 100%;
+  margin: 8px 0 0;
+}
+/* the one-row strip with no room for text: cover and play side by side, centred */
+.pd-npl--notext {
+  justify-content: center;
+}
+.pd-npl--notext .pd-npl__play {
+  margin-left: 14px !important;
+}
+
+/* ---------- Now playing, 1x1 capsule: the whole tile plays / pauses; a small translucent badge instead of a solid white disc ---------- */
+.pd-root .pd-npl__hit {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pd-npl__badge {
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  /* over artwork: a dark scrim with a hairline, white icon (media chrome, so not theme ink) */
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+  /* kn-motion 1: shown and hidden many times a day, so opacity only, fast token, ease-out */
+  -webkit-transition: opacity var(--pd-dur-fast) var(--pd-ease-out), -webkit-transform var(--pd-dur) var(--pd-ease-out);
+  transition: opacity var(--pd-dur-fast) var(--pd-ease-out), transform var(--pd-dur) var(--pd-ease-out);
+}
+/* playing: the badge hides; a press shows it (and the press scale 0.97, quick down) */
+.pd-npl__hit--quiet .pd-npl__badge {
+  opacity: 0;
+}
+.pd-npl__hit:active .pd-npl__badge {
+  opacity: 1;
+  -webkit-transform: scale(0.97);
+  transform: scale(0.97);
+  -webkit-transition-duration: var(--pd-dur-fast);
+  transition-duration: var(--pd-dur-fast);
+}
+.pd-npl__hit[disabled] .pd-npl__badge {
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pd-npl__badge {
+    -webkit-transition: none;
+    transition: none;
+  }
+}
+
+/* ---------- Now playing, 2x1 (mini): title first, a quiet play button, the cover only with room, progress on the bottom edge ---------- */
+.pd-npl--mini {
+  padding: 12px;
+}
+.pd-npl--mini .pd-npl__txt {
+  margin-left: 10px;
+}
+.pd-npl--mini .pd-npl__txt:first-child {
+  margin-left: 0;
+}
+/* no "last played" chip and (on a two-line title) no artist line at this size: the tile keeps to two lines of text */
+.pd-npl--mini .pd-npl__chip,
+.pd-npl--mini2 .pd-npl__artist {
+  display: none;
+}
+.pd-root .pd-npl__ghost--play {
+  margin-left: 6px;
+  color: var(--pd-text);
+}
+.pd-npl__edge {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 6px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.22);
+}
+.pd-npl__edge .pd-npl__fill {
+  display: block;
+}
