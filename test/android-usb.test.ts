@@ -69,7 +69,8 @@ describe("zip", () => {
     const dir = mkdtempSync(join(tmpdir(), "pd-zip-"));
     await extractZip(zip, dir);
     expect(readFileSync(join(dir, "platform-tools/NOTICE.txt"), "utf8")).toBe("notice");
-    expect(statSync(join(dir, "platform-tools/adb")).mode & 0o111).toBeTruthy();
+    // Windows has no executable bit (adb there is adb.exe)
+    if (process.platform !== "win32") expect(statSync(join(dir, "platform-tools/adb")).mode & 0o111).toBeTruthy();
   });
   test("an entry that climbs out of the folder is refused", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pd-zip-"));

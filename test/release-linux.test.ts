@@ -45,7 +45,7 @@ describe("release.yml: the Linux agent", () => {
   });
   test("publish needs it, adds its sums to SHA256SUMS and attaches all four files; a dry run bundles them too", () => {
     const p = job("publish");
-    expect(p).toMatch(/needs: \[release, linux-cli, linux-packages, windows-app, mac-app\]/);
+    expect(p).toMatch(/needs: \[release, linux-cli, linux-packages, windows-app, mac-app, android-app\]/);
     expect(p).toContain("needs.linux-cli.result == 'success'");
     expect(p).toContain("cat SHA256SUMS.linux >> SHA256SUMS");
     const create = p.split("gh release create")[1]!.split("\n")[0]!;
@@ -122,5 +122,20 @@ describe("Linux packages", () => {
     expect(p).toContain("linux-packages");
     expect(p).toContain("cat SHA256SUMS.linux-packages >> SHA256SUMS");
     expect(p).toContain("dist/nookdeck_*.deb dist/nookdeck-*.rpm dist/nookdeck-linux-*.tar.gz");
+  });
+});
+
+// spec android-app-and-usb-setup: the signed app goes into the release and SHA256SUMS, never a debug-signed one
+describe("release.yml: the Android app", () => {
+  test("built only with the release key, refused when debug-signed, attached and summed", () => {
+    const a = job("android-app");
+    expect(a).toContain("secrets.ANDROID_KEYSTORE_BASE64");
+    expect(a).toContain("CN=Android Debug");
+    expect(a).toContain("-PnookdeckVersion=");
+    expect(a).toContain("rm -f \"$RUNNER_TEMP/release.jks\"");
+    const p = job("publish");
+    expect(p).toContain("Nookdeck-Setup.exe Nookdeck.apk; do");
+    expect(p.split("gh release create")[1]!.split("\n")[0]!).toContain("dist/Nookdeck.apk ");
+    expect(job("dry-run-bundle")).toContain("Nookdeck.apk; do");
   });
 });
