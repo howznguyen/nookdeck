@@ -9,7 +9,7 @@
  * Safari 12: no ResizeObserver, so it re-runs on window resize, DOM and style changes, and when fonts finish loading.
  */
 
-export const FIT_ROW = '.pd-clock__t, .pd-clk__min, .pd-fl__h span, .pd-wd__t, .pd-sb__time, .pd-mv, .pd-vl__v, .pd-wx__t, .pd-pl__cv, .pd-ent__v, .pd-wx__hi, .pd-wx__lo'
+export const FIT_ROW = '.pd-clock__t, .pd-clk__min, .pd-fl__h span, .pd-wd__t, .pd-sb__time, .pd-mv, .pd-vl__v, .pd-wx__t, .pd-pl__cv, .pd-ent__v, .pd-wx__dhi, .pd-wx__dlo'
 export const FIT_RING = '.pd-gwrap__n, .pd-ring__t, .pd-pl__gv'
 export const FIT_LABEL = '.pd-tile__lb, .pd-ios__lb'
 const RING_BOX = '.pd-gwrap, .pd-ring, .pd-pl__g'

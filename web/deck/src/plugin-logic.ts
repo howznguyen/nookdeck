@@ -221,11 +221,15 @@ function sampleWeather(): { [k: string]: unknown } {
   const p = (n: number) => (n < 10 ? '0' : '') + n
   const day = (d: Date) => d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
   const hours: [number, string, number, string][] = [[31, 'Partly cloudy', 2, 'cloud-sun'], [32, 'Partly cloudy', 2, 'cloud-sun'], [31, 'Cloudy', 3, 'cloud'], [29, 'Cloudy', 3, 'cloud'], [28, 'Light rain', 61, 'rain'], [27, 'Light rain', 61, 'rain']]
-  const days: [number, number, string, number, string][] = [[25, 33, 'Partly cloudy', 2, 'cloud-sun'], [24, 31, 'Light rain', 61, 'rain'], [24, 32, 'Mostly clear', 1, 'sun']]
+  // min, max, condition, code, icon, rain mm, chance of rain %, UV
+  const days: [number, number, string, number, string, number, number, number][] = [
+    [25, 33, 'Partly cloudy', 2, 'cloud-sun', 0.2, 10, 8.4], [24, 31, 'Light rain', 61, 'rain', 6.8, 80, 3.1], [24, 32, 'Mostly clear', 1, 'sun', 0, 5, 9.2],
+    [24, 30, 'Thunderstorm', 95, 'storm', 14.2, 90, 3], [23, 30, 'Light rain', 61, 'rain', 3.6, 65, 4.1], [24, 31, 'Partly cloudy', 2, 'cloud-sun', 0, 15, 8.7], [25, 33, 'Mostly clear', 1, 'sun', 0, 5, 9.5],
+  ]
   return {
-    now: { temp: 31, feels: 34, condition: 'Partly cloudy', code: 2, icon: 'cloud-sun', humidity: 62, wind: 11, isDay: true },
+    now: { temp: 31, feels: 34, condition: 'Partly cloudy', code: 2, icon: 'cloud-sun', humidity: 62, wind: 11, windDir: 135, aqi: 42, isDay: true },
     hourly: hours.map((h, i) => { const d = new Date(now + (i + 1) * 3600000); return { time: day(d) + 'T' + p(d.getHours()) + ':00', temp: h[0], condition: h[1], code: h[2], icon: h[3] } }),
-    daily: days.map((x, i) => ({ date: day(new Date(now + i * 86400000)), min: x[0], max: x[1], condition: x[2], code: x[3], icon: x[4] })),
+    daily: days.map((x, i) => ({ date: day(new Date(now + i * 86400000)), min: x[0], max: x[1], condition: x[2], code: x[3], icon: x[4], rain: x[5], pop: x[6], uv: x[7] })),
     source: 'open-meteo', location: 'Home', units: 'metric', tempUnit: 'c', updatedAt: now,
   }
 }
@@ -303,3 +307,46 @@ export function coreTileOf(plugin: { id: string; widget: string; settings?: { [k
   }
   return null
 }
+
+/** What a weather-style clock shows, in the units the tile asks for. */
+export interface ClockWx {
+  /** current temperature, rounded, in `unit` */
+  temp: number
+  unit: 'C' | 'F'
+  /** what the glyph and condition text are picked from: the WMO code when the agent sent one, else the condition word */
+  cond: string | number
+  high?: number
+  low?: number
+  /** the agent's now.isDay (Open-Meteo is_day); missing = unknown, the deck then guesses from the hour */
+  isDay?: boolean
+}
+
+const numOr = (v: unknown): number | undefined => (typeof v === 'number' && isFinite(v) ? v : undefined)
+
+/**
+ * A weather-style clock's slot (st.plugins[tile id], the core.weather tile the agent made for it) as what the clock draws; null while
+ * there is no data yet or on an error. Reads the agent's answer (src/weather.ts: now.code, daily[0].min/max, tempUnit 'c'|'f') and
+ * also the older deck shape (now.high/low, daily[].high/low, unit). `want` is the unit to show (the clock's own units, else the theme's).
+ */
+export function clockWeatherOf(slot: PluginSlot | undefined, want: 'C' | 'F'): ClockWx | null {
+  if (!slot || !('custom' in slot) || slot.custom !== 'weather' || !slot.data || !isObj(slot.data.now)) return null
+  const d = slot.data
+  const now = d.now as { [k: string]: unknown }
+  const temp = numOr(now.temp)
+  if (temp === undefined) return null
+  const src = typeof d.tempUnit === 'string' ? d.tempUnit : typeof d.unit === 'string' ? d.unit : d.units === 'imperial' ? 'f' : 'c'
+  const from: 'C' | 'F' = String(src).toUpperCase().indexOf('F') >= 0 ? 'F' : 'C'
+  const conv = (v: number | undefined) => (v === undefined ? undefined : Math.round(from === want ? v : from === 'C' ? (v * 9) / 5 + 32 : ((v - 32) * 5) / 9))
+  const day0 = Array.isArray(d.daily) && isObj(d.daily[0]) ? (d.daily[0] as { [k: string]: unknown }) : {}
+  const hi = numOr(now.high) !== undefined ? numOr(now.high) : numOr(day0.max) !== undefined ? numOr(day0.max) : numOr(day0.high)
+  const lo = numOr(now.low) !== undefined ? numOr(now.low) : numOr(day0.min) !== undefined ? numOr(day0.min) : numOr(day0.low)
+  const cond = typeof now.code === 'number' ? now.code : typeof now.condition === 'string' || typeof now.condition === 'number' ? now.condition : typeof now.icon === 'string' ? now.icon : 'cloudy'
+  const out: ClockWx = { temp: conv(temp) as number, unit: want, cond: cond }
+  if (hi !== undefined) out.high = conv(hi)
+  if (lo !== undefined) out.low = conv(lo)
+  if (typeof now.isDay === 'boolean') out.isDay = now.isDay
+  return out
+}
+
+/** The manage preview's weather slot (demo data in the agent's shape). */
+export const sampleWeatherSlot = (): PluginSlot => ({ custom: 'weather', data: sampleWeather() })

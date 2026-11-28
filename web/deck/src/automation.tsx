@@ -4,8 +4,7 @@ import { getLang } from './i18n'
 import { t } from './i18n'
 import { TileIcon } from './icon'
 import { isIconName } from '../../shared/icons'
-import { convTemp, tempUnit, unitOf } from './temp'
-import type { IconAssets, Notice, PushedValue, PushOptions, WeatherData, WeatherOptions } from './types'
+import type { IconAssets, Notice, PushedValue, PushOptions } from './types'
 
 /** Re-render every `ms` so relative times ("3 min ago") stay fresh. */
 export function useTick(ms: number): number {
@@ -87,7 +86,8 @@ const COND_ICON: { [k in Cond]: { names: string[]; emoji: string; color: string 
 /** Names the weather widget can draw; the orchestrator's gen-assets should include them. */
 export const WEATHER_ICON_NAMES = ['sun', 'moon', 'cloud', 'cloud-sun', 'cloud-rain', 'cloud-storm', 'cloud-snow', 'cloud-fog', 'snowflake', 'wind', 'bolt']
 
-function WxGlyph(props: { cond: unknown; size: number; assets?: IconAssets }) {
+/** The weather glyph for a condition (Tabler icon when available, else emoji); also used by the weather-style clock. */
+export function WxGlyph(props: { cond: unknown; size: number; assets?: IconAssets }) {
   const c = COND_ICON[condOf(props.cond)]
   let name = ''
   for (let i = 0; i < c.names.length; i++) {
@@ -109,22 +109,10 @@ const DAY_ZH = ['周日', '周一', '周二', '周三', '周四', '周五', '周
 const DAY_FR = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.']
 const DAY_PT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 const DAY = (): string[] => (getLang() === 'zh' ? DAY_ZH : getLang() === 'vi' ? DAY_VI : getLang() === 'fr' ? DAY_FR : getLang() === 'pt' ? DAY_PT : DAY_EN)
-const degIn = (n: number | undefined, from: 'C' | 'F', to: 'C' | 'F') => (typeof n === 'number' && isFinite(n) ? Math.round(convTemp(n, from, to)) + '°' : '–')
-const SOURCE_NAME: { [k: string]: string } = { hass: 'Home Assistant', 'open-meteo': 'Open-Meteo' }
-/** low-opacity, condition tinted wash behind the tile (brand-safe tones, fine on light and dark) */
-const COND_TINT: { [k in Cond]: string } = {
-  clear: '251,191,36',
-  night: '99,102,241',
-  partly: '251,191,36',
-  cloudy: '148,163,184',
-  rain: '59,130,246',
-  pour: '59,130,246',
-  storm: '99,102,241',
-  snow: '186,230,253',
-  fog: '148,163,184',
-  wind: '148,163,184',
-  hail: '186,230,253',
-}
+/** Short weekday name of a time, in the deck language. */
+export const weekdayOf = (ms: number): string => DAY()[new Date(ms).getDay()]
+/** The deck's own text for a condition (code or word), translated: what the weather tile shows. */
+export const condTextOf = (c: unknown, ms: number): string => t(COND_TEXT[condAt(c, ms)])
 const isNightAt = (ms: number) => {
   const h = new Date(ms).getHours()
   return h >= 19 || h < 6
@@ -134,257 +122,10 @@ const condAt = (c: unknown, ms: number): Cond => {
   const k = condOf(c)
   return k === 'clear' && isNightAt(ms) ? 'night' : k
 }
-const hourLabel = (ms: number) => {
+/** An hour label ("3 PM", "15h", "15时") in the deck language. */
+export const hourLabel = (ms: number) => {
   const h = new Date(ms).getHours()
   return getLang() === 'zh' ? h + '时' : getLang() === 'vi' || getLang() === 'pt' ? h + 'h' : getLang() === 'fr' ? h + ' h' : (h % 12 || 12) + (h < 12 ? ' AM' : ' PM')
-}
-
-export interface WeatherProps {
-  opts?: WeatherOptions
-  data?: WeatherData
-  tw: number
-  th: number
-  /** grid span of the tile in cells; the face is picked from it first */
-  cw?: number
-  ch?: number
-  scale: number
-  showLabel: boolean
-  textColor?: string
-  assets?: IconAssets
-}
-
-/**
- * Layout by size (px of the tile):
- *   tiny    1x1            glyph + temperature
- *   row     2x1            glyph, temperature, condition, H/L
- *   card    2x2            place + glyph, big temperature, condition, H/L, hourly strip
- *   wide    3x1 / 4x1      current on the left, hourly strip on the right
- *   full    3x2 / 4x2      current block, hourly strip, daily rows with min/max bars
- *   tall    2x3            daily list (current as a slim header)
- */
-export function WeatherTile(props: WeatherProps) {
-  const now = useTick(30000)
-  const d = props.data
-  const tw = props.tw
-  const th = props.th
-  const pad = tw >= 170 ? 14 : 10
-  const col = props.textColor || undefined
-  if (!d || !d.now) {
-    return (
-      <div class="pd-wx pd-wx--empty" style={{ padding: pad + 'px' }}>
-        <WxGlyph cond="cloudy" size={Math.round(Math.min(34, th * 0.35))} assets={props.assets} />
-        <span class="pd-wx__s">{t('Loading weather…')}</span>
-      </div>
-    )
-  }
-  const cur = d.now
-  // shown unit: the widget's own units win over the theme; the source unit is what the numbers are in (open-meteo is requested in the shown unit)
-  const toU: 'C' | 'F' = props.opts && props.opts.units ? (props.opts.units === 'imperial' ? 'F' : 'C') : tempUnit()
-  const fromU: 'C' | 'F' = d.unit ? unitOf(d.unit) : d.source === 'open-meteo' ? toU : 'C'
-  const deg = (n: number | undefined) => degIn(n, fromU, toU)
-  const show = (props.opts && props.opts.show) || 'auto'
-  const hourly = (d.hourly || []).slice(0, 12)
-  const daily = (d.daily || []).slice(0, 7)
-  const innerW = tw - pad * 2
-  const innerH = th - pad * 2
-  const place = d.location || (props.opts && props.opts.location && props.opts.location.name) || ''
-  const hi = cur.high !== undefined ? cur.high : daily[0] ? daily[0].high : undefined
-  const lo = cur.low !== undefined ? cur.low : daily[0] ? daily[0].low : undefined
-  const cond = condAt(cur.condition, now)
-  const ageMin = d.updatedAt ? Math.round((now - toMs(d.updatedAt)) / 60000) : 0
-  const stale = ageMin > 45
-  const condText = cur.text || t(COND_TEXT[cond])
-  const hl = hi !== undefined || lo !== undefined ? 'H:' + deg(hi) + '  L:' + deg(lo) : ''
-
-  // mode
-  // face by grid span first (cw x ch cells); pixels only decide for very small tiles
-  const cw = props.cw || Math.max(1, Math.round(tw / 140))
-  const ch = props.ch || Math.max(1, Math.round(th / 140))
-  let mode: 'tiny' | 'row' | 'card' | 'wide' | 'full' | 'tall' = 'card'
-  if (ch <= 1) mode = cw <= 1 ? 'tiny' : cw === 2 ? 'row' : 'wide'
-  else if (cw <= 1) mode = 'tall'
-  else if (cw === 2) mode = ch >= 3 ? 'tall' : 'card'
-  else mode = 'full'
-  if (tw < 100 || th < 70) mode = 'tiny'
-  if (show === 'daily' && th >= 100) mode = ch <= 1 ? (cw >= 3 ? 'wide' : 'row') : cw >= 3 ? 'full' : 'tall'
-  if (show === 'hourly' && th >= 100 && (mode === 'full' || mode === 'tall')) mode = cw >= 3 && ch <= 2 ? 'wide' : 'card'
-  const noStrip = show === 'now'
-  if (noStrip && (mode === 'full' || mode === 'wide' || mode === 'tall')) mode = ch <= 1 ? 'row' : 'card'
-
-  const temp = (size: number) => (
-    <span class="pd-wx__t" data-part="num" style={{ fontSize: size + 'px', color: col }}>
-      {deg(cur.temp)}
-    </span>
-  )
-
-  const hourEls = (n: number, big: boolean) => {
-    const list = hourly.slice(0, n)
-    if (!list.length) return null
-    return (
-      <div class={'pd-wx__hr' + (big ? ' pd-wx__hr--big' : '')}>
-        {list.map((h, i) => {
-          const ms = toMs(h.t)
-          return (
-            <span class="pd-wx__h" key={i}>
-              <span class="pd-wx__hl">{i === 0 ? t('Now') : hourLabel(ms)}</span>
-              <WxGlyph cond={condAt(h.condition, ms)} size={big ? 24 : 20} assets={props.assets} />
-              <b data-part="num" style={{ color: col }}>{deg(h.temp)}</b>
-            </span>
-          )
-        })}
-      </div>
-    )
-  }
-
-  const dailyEls = (n: number, rh?: number) => {
-    const list = daily.slice(0, n)
-    if (!list.length) return null
-    let min = Infinity
-    let max = -Infinity
-    daily.forEach((x) => {
-      if (x.low < min) min = x.low
-      if (x.high > max) max = x.high
-    })
-    const span = Math.max(1, max - min)
-    return (
-      <div class="pd-wx__dy">
-        {list.map((x, i) => {
-          const l = ((x.low - min) / span) * 100
-          const w = Math.max(8, ((x.high - x.low) / span) * 100)
-          return (
-            <span class="pd-wx__d" key={i} style={rh ? { height: rh + 'px' } : undefined}>
-              <span class="pd-wx__dn">{i === 0 ? t('Today') : DAY()[new Date(toMs(x.t)).getDay()]}</span>
-              <WxGlyph cond={x.condition} size={20} assets={props.assets} />
-              <span class="pd-wx__lo" data-part="num">{deg(x.low)}</span>
-              <span class="pd-wx__bar">
-                <i style={{ left: l + '%', width: Math.min(100 - l, w) + '%' }} />
-              </span>
-              <span class="pd-wx__hi" data-part="num" style={{ color: col }}>{deg(x.high)}</span>
-            </span>
-          )
-        })}
-      </div>
-    )
-  }
-
-  /** place (small, top-left) with the glyph top-right; temperature; condition; H/L */
-  const currentBlock = (bigT: number, gl: number, compact?: boolean) =>
-    compact ? (
-      <div class="pd-wx__cur">
-        <div class="pd-wx__slim">
-          <WxGlyph cond={cond} size={gl} assets={props.assets} />
-          {temp(bigT)}
-        </div>
-        <span class="pd-wx__s pd-wx__c" style={{ color: col }}>{condText}</span>
-      </div>
-    ) : (
-      <div class="pd-wx__cur">
-        <div class="pd-wx__top">
-          <span class="pd-wx__place">{place}</span>
-          <WxGlyph cond={cond} size={gl} assets={props.assets} />
-        </div>
-        {temp(bigT)}
-        <span class="pd-wx__s pd-wx__c" style={{ color: col }}>{condText}</span>
-        {hl ? <span class="pd-wx__s">{hl}</span> : null}
-      </div>
-    )
-
-  let body: any = null
-  if (mode === 'tiny') {
-    // one key: glyph about 38% of the tile with the temperature under it, centred as a group; H/L only when it fits
-    const m = Math.min(tw, th)
-    const gl = Math.round(Math.max(22, m * 0.38))
-    const tsz = Math.round(Math.max(20, Math.min(m * 0.27, innerW * 0.34)))
-    const showHl = !!hl && innerH >= gl + tsz + 30 && innerW >= 76
-    body = (
-      <div class="pd-wx__tiny">
-        <WxGlyph cond={cond} size={gl} assets={props.assets} />
-        {temp(tsz)}
-        {showHl ? <span class="pd-wx__hl1">{'H ' + deg(hi).replace('°', '') + ' · L ' + deg(lo).replace('°', '')}</span> : null}
-      </div>
-    )
-  } else if (mode === 'row') {
-    const bigT = Math.round(Math.max(24, Math.min(44, innerH * 0.56, innerW * 0.13)))
-    body = (
-      <div class="pd-wx__rowm">
-        <WxGlyph cond={cond} size={Math.round(Math.min(40, innerH * 0.62))} assets={props.assets} />
-        {temp(bigT)}
-        <span class="pd-wx__rt">
-          <span class="pd-wx__s pd-wx__c" style={{ color: col }}>{condText}</span>
-          {hl ? <span class="pd-wx__s">{hl}</span> : null}
-        </span>
-      </div>
-    )
-  } else if (mode === 'card') {
-    // 2x2: place + glyph, big temperature, condition, H/L, then a 4-5 slot hourly strip (type shrinks to fit)
-    const strip = !noStrip && innerH >= 130 && hourly.length > 0
-    const slots = Math.max(3, Math.min(5, Math.floor(innerW / 40)))
-    const bigT = Math.round(Math.max(26, Math.min(56, strip ? innerH - 138 : innerH * 0.36, innerW * 0.3)))
-    body = (
-      <>
-        {currentBlock(bigT, Math.round(Math.min(34, Math.max(22, bigT * 0.75))), innerH < 110)}
-        {strip ? hourEls(slots, false) : null}
-      </>
-    )
-  } else if (mode === 'wide') {
-    const compact = innerH < 120
-    const slots = Math.max(3, Math.min(8, Math.floor((innerW * 0.58) / 46)))
-    const bigT = Math.round(Math.max(28, Math.min(52, compact ? innerH * 0.5 : innerH * 0.34)))
-    body = (
-      <div class="pd-wx__split">
-        <div class="pd-wx__sl">{currentBlock(bigT, 30, compact)}</div>
-        <div class="pd-wx__sr">{hourEls(slots, false)}</div>
-      </div>
-    )
-  } else if (mode === 'full') {
-    const compact = innerH < 215
-    const slots = Math.max(4, Math.min(9, Math.floor(innerW / 54)))
-    const bigT = compact ? 34 : 44
-    const used = compact ? 78 : bigT + 56
-    const rh = compact ? 24 : 28
-    const rows = Math.max(1, Math.min(th >= 300 ? 4 : 3, daily.length, Math.floor((innerH - used - (compact ? 4 : 32)) / rh)))
-    body = (
-      <>
-        <div class="pd-wx__split pd-wx__split--top">
-          <div class="pd-wx__sl">{currentBlock(bigT, 30, compact)}</div>
-          <div class="pd-wx__sr">{hourEls(slots > 6 && tw < 400 ? 5 : Math.min(slots, 6), false)}</div>
-        </div>
-        {dailyEls(rows, rh)}
-      </>
-    )
-  } else {
-    // tall / daily: slim current header, then 4+ days with min-max bars
-    const small = innerH < 215
-    const rh = small ? 24 : 28
-    const rows = Math.max(small ? 4 : 3, Math.min(7, daily.length, Math.floor((innerH - (small ? 54 : 70)) / rh)))
-    body = (
-      <>
-        <div class="pd-wx__slim">
-          <WxGlyph cond={cond} size={small ? 24 : 34} assets={props.assets} />
-          {temp(small ? 28 : 40)}
-          <span class="pd-wx__rt">
-            <span class="pd-wx__s pd-wx__c" style={{ color: col }}>{condText}</span>
-            {place ? <span class="pd-wx__s">{place}</span> : null}
-          </span>
-        </div>
-        {dailyEls(Math.min(rows, daily.length), rh)}
-      </>
-    )
-  }
-
-  const src = d.source ? SOURCE_NAME[d.source] || d.source : ''
-  const showSrc = src && ((mode === 'full' && innerH >= 215) || (mode === 'tall' && th >= 330))
-  return (
-    <div class={'pd-wx pd-wx--' + mode + (stale ? ' pd-wx--stale' : '')} style={{ padding: pad + 'px', background: mode === 'tiny' ? 'rgba(' + COND_TINT[cond] + ',0.12)' : 'linear-gradient(160deg, rgba(' + COND_TINT[cond] + ',0.17), rgba(' + COND_TINT[cond] + ',0.03) 75%)', borderRadius: 'inherit' }}>
-      {body}
-      {showSrc ? (
-        <span class="pd-wx__src">
-          {src}
-          {stale ? ' · ' + t('{0} min ago', ageMin) : ''}
-        </span>
-      ) : null}
-    </div>
-  )
 }
 
 // ---------------- pushed value ----------------
