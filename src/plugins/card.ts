@@ -38,6 +38,13 @@ export type CardNode =
   | { t: "month"; month: string; today?: string; selected?: string; weekStart?: 0 | 1; marks?: CardMark[] }
   /** Up to seven days from `start` (C4), read-only: a time grid, or a list per day when it is too short. more[i]: events of day i that were left out. */
   | { t: "week"; start: string; days?: number; today?: string; now?: string; hour24?: boolean; from?: number; to?: number; events: CardWeekEvent[]; more?: number[] }
+  /**
+   * A market row (Nookdeck 0.7.4): symbol, a muted name, a price, a change chip and a week's or a day's chart. The deck lays it out
+   * for its width (a name beside the symbol goes first, then the chart, then the chip) and lines the columns up with the card's other tickers. The
+   * chart is drawn neutral (it may cover another period than the change): colour is the chip's. hero: a big row with a taller chart and `note` under
+   * it, taking the card's free space. The plugin formats `price` and `change` ("$59,521", "−3.48%"); `tone` colours the chip.
+   */
+  | { t: "ticker"; symbol: string; name?: string; price: string; change?: string; tone?: CardTone; points?: number[]; note?: string; hero?: boolean }
   | { t: "spacer" };
 
 /** The `data` of a card widget. */
@@ -61,6 +68,11 @@ export const CARD_LIMITS = {
   weekEvents: 40,
   eventTitle: 80,
   weekMore: 999,
+  tickerSymbol: 16,
+  tickerName: 60,
+  tickerPrice: 40,
+  tickerChange: 20,
+  tickerNote: 80,
 } as const;
 
 const TONES = ["default", "muted", "accent", "ok", "warn", "bad"];
@@ -79,6 +91,7 @@ const FIELDS: Record<string, string[]> = {
   button: ["label", "icon", "action", "args", "tone", "active", "layout"],
   month: ["month", "today", "selected", "weekStart", "marks"],
   week: ["start", "days", "today", "now", "hour24", "from", "to", "events", "more"],
+  ticker: ["symbol", "name", "price", "change", "tone", "points", "note", "hero"],
   spacer: [],
 };
 const DAY_RE = /^[12]\d{3}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -246,6 +259,20 @@ function node(v: unknown, where: string, depth: number, ctx: Ctx): CardNode {
       if (!Array.isArray(more) || more.length > days) return bad(`${where}.more must be a list of at most one number for each day`);
       out.more = more.map((n, i) => whole(n, `${where}.more[${i}]`, 0, CARD_LIMITS.weekMore));
     }
+  } else if (t === "ticker") {
+    out.symbol = str(v.symbol, `${where}.symbol`, CARD_LIMITS.tickerSymbol);
+    if (!out.symbol) bad(`${where}.symbol must not be empty`);
+    if (has("name")) out.name = str(v.name, `${where}.name`, CARD_LIMITS.tickerName);
+    out.price = str(v.price, `${where}.price`, CARD_LIMITS.tickerPrice);
+    if (has("change")) out.change = str(v.change, `${where}.change`, CARD_LIMITS.tickerChange);
+    if (has("points")) {
+      const p = v.points;
+      if (!Array.isArray(p) || p.length > CARD_LIMITS.points || !p.every(finite)) bad(`${where}.points must be at most ${CARD_LIMITS.points} numbers`);
+      out.points = (p as number[]).slice();
+    }
+    if (has("note")) out.note = str(v.note, `${where}.note`, CARD_LIMITS.tickerNote);
+    if (has("hero")) out.hero = bool(v.hero, `${where}.hero`);
+    tone();
   } else if (t === "sparkline") {
     const p = v.points;
     if (!Array.isArray(p) || p.length > CARD_LIMITS.points || !p.every(finite)) bad(`${where}.points must be at most ${CARD_LIMITS.points} numbers`);
@@ -348,5 +375,8 @@ export const card = {
   month: (month: string, o: Opts<"month", "month"> = {}): CardNode => make("month", { ...o, month }),
   /** days from `start` with their events: `card.week("2026-11-23", [{ day: 0, start: "09:30", end: "10:00", title: "Plan" }])` */
   week: (start: string, events: CardWeekEvent[], o: Opts<"week", "start" | "events"> = {}): CardNode => make("week", { ...o, start, events }),
+  /** a market row: `card.ticker("BTC", "$59,521", { name: "Bitcoin", change: "−3.48%", tone: "bad", points })` (Nookdeck 0.7.4); keeps the last 60 points */
+  ticker: (symbol: string, price: string, o: Opts<"ticker", "symbol" | "price"> = {}): CardNode =>
+    make("ticker", { ...o, symbol, price, points: o.points ? o.points.slice(-CARD_LIMITS.points) : undefined }),
   spacer: (): CardNode => ({ t: "spacer" }),
 };

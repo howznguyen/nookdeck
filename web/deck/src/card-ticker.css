@@ -1,0 +1,50 @@
+/* The card's market parts (card-ticker.tsx): ticker rows, the hero row, and the chart shared with `sparkline`. Sizes in em of the
+   card's font. Safari 12: margins instead of flex gap, -webkit- flex, the chip tint is a pseudo-element in currentColor. */
+
+/* ---- chart */
+.pd-pcard__spk { position: relative; display: block; -webkit-flex: 1 1 0%; flex: 1 1 0%; min-width: 3em; min-height: 1.2em; }
+.pd-pcard__row > .pd-pcard__spk { height: 2.2em; -webkit-align-self: center; align-self: center; }
+.pd-pcard__spk-in { position: absolute; left: 0; top: 0.2em; right: 0.3em; bottom: 0.2em; }
+.pd-pcard__spk-in > svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.pd-pcard__spk-dot { position: absolute; left: 100%; width: 0.4em; height: 0.4em; margin: -0.2em 0 0 -0.2em; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 0.16em var(--pd-tile); }
+.pd-pcard__spk-base { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--pd-muted); opacity: 0.45; }
+
+/* ---- a row: symbol (and name), chart, price, chip */
+.pd-pcard__tk { -webkit-flex-direction: row; flex-direction: row; -webkit-align-items: center; align-items: center; -webkit-flex: 0 0 auto; flex: 0 0 auto; overflow: hidden; padding: 0.34em 0; font-variant-numeric: tabular-nums; }
+.pd-pcard .pd-pcard__col > .pd-pcard__tk + .pd-pcard__tk { margin-top: 0; border-top: 1px solid var(--pd-border); }
+.pd-pcard .pd-pcard__col > .pd-pcard__tk--hero + .pd-pcard__tk { margin-top: 0.2em; }
+.pd-pcard__tk > * + * { margin-left: 0.6em; }
+
+.pd-pcard__tk-id { display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; -webkit-flex: 0 0 auto; flex: 0 0 auto; min-width: 0; overflow: hidden; line-height: 1.2; }
+.pd-pcard__tk--nochart .pd-pcard__tk-id { -webkit-flex: 1 1 0%; flex: 1 1 0%; }
+.pd-pcard__tk[data-name='side'] .pd-pcard__tk-id { -webkit-flex-direction: row; flex-direction: row; -webkit-align-items: baseline; align-items: baseline; }
+.pd-pcard__tk[data-name='side'] .pd-pcard__tk-name { margin-left: 0.4em; -webkit-align-self: baseline; align-self: baseline; }
+.pd-pcard__tk[data-name='side'] .pd-pcard__tk-sym { -webkit-align-self: baseline; align-self: baseline; }
+.pd-pcard__tk[data-name='none'] .pd-pcard__tk-name { display: none; }
+/* both keep their own width (flex-start), so alignTickers() can measure them */
+.pd-pcard__tk-sym { display: block; -webkit-align-self: flex-start; align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; -webkit-flex: 0 0 auto; flex: 0 0 auto; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; }
+.pd-pcard__tk-name { display: block; -webkit-align-self: flex-start; align-self: flex-start; max-width: 100%; min-width: 0; font-size: 0.78em; font-weight: 500; color: var(--pd-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.pd-pcard__tk-chart { height: 1.8em; -webkit-flex: 1 1 0%; flex: 1 1 0%; }
+.pd-pcard__tk--nochart > .pd-pcard__tk-chart { display: none; }
+
+.pd-pcard__tk-px { display: block; -webkit-flex: 0 0 auto; flex: 0 0 auto; font-weight: 600; text-align: right; white-space: nowrap; }
+
+/* the change: a soft chip, tinted in its own colour */
+.pd-pcard__tk-ch { position: relative; z-index: 0; display: block; -webkit-flex: 0 0 auto; flex: 0 0 auto; box-sizing: border-box; padding: 0.22em 0.45em; border-radius: 0.4em; font-size: 0.8em; font-weight: 600; line-height: 1.2; text-align: center; white-space: nowrap; }
+.pd-pcard__tk-ch::before { content: ''; position: absolute; z-index: -1; left: 0; top: 0; right: 0; bottom: 0; border-radius: inherit; background: currentColor; opacity: 0.14; }
+.pd-pcard__tk--nochip > .pd-pcard__tk-ch { display: none; }
+
+/* ---- the hero: symbol and name, a big price and its chip, a taller chart with the first value dashed, a note */
+.pd-pcard__tk--hero { -webkit-flex-direction: column; flex-direction: column; -webkit-align-items: stretch; align-items: stretch; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-height: 4.6em; padding: 0 0 0.3em; }
+.pd-pcard__tk--hero > * + * { margin-left: 0; }
+.pd-pcard__tk-head { display: -webkit-flex; display: flex; -webkit-align-items: flex-start; align-items: flex-start; -webkit-justify-content: space-between; justify-content: space-between; -webkit-flex: 0 0 auto; flex: 0 0 auto; min-width: 0; }
+.pd-pcard__tk--hero .pd-pcard__tk-sym { font-size: 1.1em; }
+.pd-pcard__tk-right { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-flex: 0 0 auto; flex: 0 0 auto; margin-left: 0.6em; }
+.pd-pcard__tk-right > * + * { margin-left: 0.5em; }
+/* too narrow for the price and its chip side by side: the chip goes under the price */
+.pd-pcard__tk--narrow .pd-pcard__tk-right { -webkit-flex-direction: column; flex-direction: column; -webkit-align-items: flex-end; align-items: flex-end; }
+.pd-pcard__tk--narrow .pd-pcard__tk-right > * + * { margin-left: 0; margin-top: 0.3em; }
+.pd-pcard__tk-big { display: block; font-size: 1.6em; font-weight: 600; line-height: 1.1; white-space: nowrap; letter-spacing: -0.01em; }
+.pd-pcard__tk--hero > .pd-pcard__tk-chart { -webkit-flex: 1 1 auto; flex: 1 1 auto; height: auto; min-height: 2.4em; margin-top: 0.4em; }
+.pd-pcard__tk-note { display: block; -webkit-flex: 0 0 auto; flex: 0 0 auto; margin-top: 0.25em; font-size: 0.78em; color: var(--pd-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

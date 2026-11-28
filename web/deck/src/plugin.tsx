@@ -61,16 +61,28 @@ export function PluginTile(props: PluginTileProps) {
     const big = st === 'big'
     const sp = st === 'spark' && d.points && d.points.length > 1 ? d.points : null
     const showDelta = d.delta !== undefined && !big
-    const vs = Math.max(16, Math.min(Math.floor(th * (big ? 0.6 : sp ? 0.3 : showDelta ? 0.34 : 0.42)), Math.floor((tw - pad * 2) / (Math.max(2, (text + unit).length) * 0.56)), big ? 80 : 56))
+    // a short tile has no room under the value: the change sits beside it, when the width allows both
+    const sideDelta = showDelta && th < 80 && !sp && tw - pad * 2 >= 130
+    const deltaW = sideDelta ? 76 : 0
+    const vs = Math.max(16, Math.min(Math.floor(th * (big ? 0.6 : sp ? 0.3 : showDelta && !sideDelta ? 0.34 : 0.42)), Math.floor((tw - pad * 2 - deltaW) / (Math.max(2, (text + unit).length) * 0.56)), big ? 80 : 56))
+    const delta = showDelta && d.delta !== undefined ? <DeltaPill value={d.delta} unit="%" decimals={1} tone={d.delta < 0 ? 'bad' : undefined} /> : null
+    const value = (
+      <span class="pd-vl__v" data-part="tile-value" style={{ fontSize: vs + 'px', color: d.color || col }}>
+        {text}
+        {unit ? <i style={{ fontSize: Math.max(10, Math.round(vs * 0.42)) + 'px' }}>{unit}</i> : null}
+      </span>
+    )
     return (
       <div class="pd-vl pd-pl" style={{ padding: pad + 'px' }}>
         {sp ? <SlotSpark values={sp} color={d.color || props.color || '#22d3ee'} height={Math.max(20, Math.floor(th * 0.4))} slots={Math.max(2, sp.length)} fill={0.14} /> : null}
         {props.showLabel && !big && (d.label || props.label) ? <span class="pd-vl__lb" data-part="tile-label" style={{ color: d.color || props.color || undefined }}>{d.label || props.label}</span> : null}
-        <span class="pd-vl__v" data-part="tile-value" style={{ fontSize: vs + 'px', color: d.color || col }}>
-          {text}
-          {unit ? <i style={{ fontSize: Math.max(10, Math.round(vs * 0.42)) + 'px' }}>{unit}</i> : null}
-        </span>
-        {showDelta && d.delta !== undefined && th >= 80 ? <span class="pd-pl__d" data-part="tile-sub"><DeltaPill value={d.delta} unit="%" decimals={1} tone={d.delta < 0 ? 'bad' : undefined} /></span> : null}
+        {sideDelta ? (
+          <span style={{ display: 'flex', WebkitAlignItems: 'center', alignItems: 'center', WebkitJustifyContent: 'space-between', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+            {value}
+            <span data-part="tile-sub" style={{ marginLeft: '8px', WebkitFlex: '0 0 auto', flex: '0 0 auto' }}>{delta}</span>
+          </span>
+        ) : value}
+        {delta && !sideDelta && th >= 80 ? <span class="pd-pl__d" data-part="tile-sub">{delta}</span> : null}
       </div>
     )
   }

@@ -127,6 +127,7 @@ A widget can suggest a style with `"style"` in its manifest entry, for example `
 | `progress` | `value` 0 to 1, `tone?` |
 | `ring` | `value` 0 to 1, `tone?` (colour of the arc), `icon?` or `text?` in the centre (`text` up to 6 characters, such as `"95"` or `"18:16"`; it wins over `icon`), `label?` under the ring (up to 40 characters), `size?` `s` / `m` / `l` (default `m`), `arc?` `full` (default) / `gauge` (270 degrees, open at the bottom). Needs Nookdeck 0.5.1 |
 | `sparkline` | `points` (up to 60 numbers), `tone?` |
+| `ticker` | A market row: `symbol` (up to 16 characters), `price` (your formatted text, such as `"$59,521"`), `name?`, `change?` (such as `"−3.48%"`, drawn as a soft chip coloured by `tone?`), `points?` (up to 60 numbers, drawn as a thin neutral chart: it may cover another period than the change, so colour is the chip's), `hero?` (a big row with a taller chart that takes the free space) and `note?` under a hero's chart (up to 80 characters). The phone fits it to its width (a name beside the symbol goes first, then the chart, then the chip) and lines up the columns of a card's tickers. Needs Nookdeck 0.7.4 |
 | `icon` | `name` (see **Icons** below), `tone?` |
 | `image` | `src` (`data:image/png;base64,...` or `data:image/jpeg;base64,...` only), `fit?` `cover` / `contain` |
 | `button` | `action` (the id of one of your `actions`), `label?` and/or `icon?`, `args?`, `tone?`, `active?` (drawn filled), `layout?` `"tile"` (see below; needs Nookdeck 0.5.1) |
@@ -241,7 +242,7 @@ export function activate(ctx: PluginContext) {
 }
 ```
 
-The builders are `card.root`, `row`, `col`, `text`, `number`, `pill`, `progress`, `ring(value, options?)`, `month(month, options?)`, `week(start, events, options?)`, `sparkline`, `icon`, `image`, `button(label, action, options?)` and `spacer`. `row` and `col` skip `false`, `null` and `undefined` children, so `cond && card.text("...")` works. `sparkline` keeps the last 60 points. The types are `CardNode` and `CardData`.
+The builders are `card.root`, `row`, `col`, `text`, `number`, `pill`, `progress`, `ring(value, options?)`, `month(month, options?)`, `week(start, events, options?)`, `ticker(symbol, price, options?)`, `sparkline`, `icon`, `image`, `button(label, action, options?)` and `spacer`. `row` and `col` skip `false`, `null` and `undefined` children, so `cond && card.text("...")` works. `sparkline` keeps the last 60 points. The types are `CardNode` and `CardData`.
 
 A widget with an `http` or `command` source can use `card` too, if its mapped data is a `{ root }`.
 
@@ -350,7 +351,7 @@ Each code plugin runs in its own process, started by the agent, so a crash or a 
 |---|---|---|
 | `ctx.id` | | The plugin id |
 | `ctx.log(...)` | | Writes to the plugin's log (shown in manage) |
-| `ctx.settings.get()` | | The plugin-wide settings the user saved. `ctx.settings.onChange(fn)` runs after they change |
+| `ctx.settings.get()` | | The plugin-wide settings: what the user saved, and the manifest `default` of every field they left empty (Nookdeck 0.7.4). `ctx.settings.onChange(fn)` runs after they change |
 | `ctx.storage.get/set` | `storage` | The plugin's own saved data |
 | `ctx.net.fetch(url, init?)` | `network` hosts | `fetch`, limited to the hosts you list |
 | `ctx.net.websocket(url, { protocols? })` | `network` ws origins | A WebSocket to an origin you list. See [WebSockets](#websockets) |

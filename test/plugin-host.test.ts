@@ -100,6 +100,32 @@ describe("code plugin: the happy path", () => {
     await sleep(300);
     expect(textOf(await h.widget("dev.t.set", "w", {}))).toBe('{"k":"v1"}');
   });
+
+  test("ctx.settings.get() holds the manifest defaults until the owner saves a value", async () => {
+    const dir = plugin("dev.t.defaults", `
+      let cur = ctx.settings.get();
+      ctx.settings.onChange?.((s) => { cur = s; });
+      ctx.widgets.provide("w", async () => ({ render: "text", data: { body: JSON.stringify(cur) + " " + JSON.stringify(ctx.settings.get()) } }));
+    `);
+    const m = JSON.parse(readFileSync(join(dir, "nookdeck.json"), "utf8"));
+    m.settings = [
+      { key: "coins", type: "string", label: "Coins", default: "BTC, ETH, SOL" },
+      { key: "currency", type: "select", label: "Currency", options: ["usd", "eur"], default: "usd" },
+      { key: "key", type: "secret", label: "Key" },
+    ];
+    writeFileSync(join(dir, "nookdeck.json"), JSON.stringify(m));
+    const { h, store } = await setup([{ dir, id: "dev.t.defaults" }]);
+    const both = (o: unknown) => `${JSON.stringify(o)} ${JSON.stringify(o)}`;
+    expect(textOf(await h.widget("dev.t.defaults", "w", {}))).toBe(both({ coins: "BTC, ETH, SOL", currency: "usd" }));
+    // a saved value wins, and reaches the running plugin with the defaults of the fields left alone
+    await store.setSettings("dev.t.defaults", { coins: "DOGE", key: "s3cret" });
+    await sleep(300);
+    expect(textOf(await h.widget("dev.t.defaults", "w", {}))).toBe(both({ coins: "DOGE", currency: "usd", key: "s3cret" }));
+    // a cleared field is removed by the store, so its default comes back
+    await store.setSettings("dev.t.defaults", { coins: "", currency: "eur" });
+    await sleep(300);
+    expect(textOf(await h.widget("dev.t.defaults", "w", {}))).toBe(both({ coins: "BTC, ETH, SOL", currency: "eur", key: "s3cret" }));
+  });
 });
 
 describe("crash isolation, hang kill, backoff", () => {

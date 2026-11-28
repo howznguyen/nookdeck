@@ -3,6 +3,7 @@ import { TileIcon } from './icon'
 import type { IconAssets } from './types'
 import { CardMonth, CardWeek, type CalBox } from './card-calendar'
 import { monthWidth } from './card-calendar-logic'
+import { Spark, Ticker, alignTickers, layTickers } from './card-ticker'
 import { CARD_MIN_PX, CARD_SHRINK, cardBase, cardStacks, ringTextPx } from './plugin-logic'
 import type { CardArgs, CardData, CardNode, CardTone } from '../../../src/plugins/card'
 
@@ -64,11 +65,13 @@ export class CardTile extends Component<CardTileProps, CardState> {
       for (let s = 0; s < CARD_SHRINK.length && !done; s++) {
         el.style.fontSize = Math.max(CARD_MIN_PX, Math.round(base * CARD_SHRINK[s] * 10) / 10) + 'px'
         arrangeTiles(el)
+        layTickers(el)
         sizeMonths(el)
         done = !overflows(el) && !labelClipped(el)
       }
     }
     trim(el)
+    alignTickers(el) // the rows left out no longer widen the columns
     dropSlivers(el)
     sizeMonths(el)
     sizeRings(el)
@@ -161,7 +164,8 @@ export class CardTile extends Component<CardTileProps, CardState> {
         ? <CardMonth key={path} node={n} path={path} box={this.state.boxes[path]} paint={paint} />
         : <CardWeek key={path} node={n} path={path} box={this.state.boxes[path]} paint={paint} />
     }
-    if (n.t === 'sparkline') return <Spark key={path} points={n.points} color={this.tone(n.tone, this.props.color || 'var(--pd-accent)') as string} />
+    if (n.t === 'sparkline') return <Spark key={path} points={n.points} cls="pd-pcard__spark" color={this.tone(n.tone, this.props.color || 'var(--pd-accent)') as string} />
+    if (n.t === 'ticker') return <Ticker key={path} node={n} tone={this.tone(n.tone || 'muted', text) as string} textColor={text} />
     if (n.t === 'icon') {
       return <span key={path} class="pd-pcard__icon" style={{ color: this.tone(n.tone, text) }}><TileIcon value={n.name} size={24} assets={this.props.assets} /></span>
     }
@@ -274,7 +278,7 @@ function dropSlivers(card: HTMLElement) {
 
 /** Parts that take a share of the free space (rings, tile buttons, stack rows); so do the boxes around them. */
 const fills = (n: CardNode): boolean =>
-  n.t === 'ring' || n.t === 'month' || n.t === 'week' || (n.t === 'button' && n.layout === 'tile') || (n.t === 'row' && !!n.stack) || ((n.t === 'row' || n.t === 'col') && n.children.some(fills))
+  n.t === 'ring' || n.t === 'month' || n.t === 'week' || (n.t === 'ticker' && !!n.hero) || (n.t === 'button' && n.layout === 'tile') || (n.t === 'row' && !!n.stack) || ((n.t === 'row' || n.t === 'col') && n.children.some(fills))
 
 /**
  * `stack: "auto"` rows, outer ones first: a column when the box is about square or taller. Side by side with one ring among
@@ -478,23 +482,6 @@ function Ring(props: { node: Extract<CardNode, { t: 'ring' }>; color: string; te
         </span>
         {n.label ? <span class="pd-pcard__rl" data-part="tile-sub">{n.label}</span> : null}
       </span>
-    </span>
-  )
-}
-
-function Spark(props: { points: number[]; color: string }) {
-  const p = props.points
-  if (p.length < 2) return <span class="pd-pcard__spark" />
-  let lo = Math.min.apply(null, p)
-  let hi = Math.max.apply(null, p)
-  if (hi === lo) { lo -= 1; hi += 1 }
-  const pts = p.map((v, i) => ((i / (p.length - 1)) * 100).toFixed(2) + ',' + (27 - ((v - lo) / (hi - lo)) * 24).toFixed(2)).join(' ')
-  return (
-    <span class="pd-pcard__spark" aria-hidden="true">
-      <svg width="100%" height="100%" viewBox="0 0 100 30" preserveAspectRatio="none">
-        <polygon points={'0,30 ' + pts + ' 100,30'} style={{ fill: props.color, opacity: 0.14 }} />
-        <polyline points={pts} fill="none" vector-effect="non-scaling-stroke" style={{ stroke: props.color, strokeWidth: 2 }} stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
     </span>
   )
 }
