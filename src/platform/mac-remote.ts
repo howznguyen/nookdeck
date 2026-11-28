@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { HOME } from "../config";
 import type { RawMedia } from "../media";
 import {
-  LineSplitter, MAX_STREAM_FAILURES, MR_COMMANDS, applyStreamLine, backoffMs, stateArtwork, stateToMedia,
+  LineSplitter, MAX_STREAM_FAILURES, MR_COMMANDS, applyStreamLine, backoffMs, mixedDiff, parseGet, stateArtwork, stateToMedia,
   type MrCommand, type NowPlayingState,
 } from "../mediaremote";
 
@@ -89,6 +89,8 @@ export interface RemoteDeps {
   idleMs?: number;
   /** How long the first read waits for the stream's first message (ms). */
   firstMs?: number;
+  /** Runs the adapter's one-shot `get` and returns its stdout, or null (tests). */
+  get?: (argv: string[]) => Promise<string | null>;
   /** Schedules the restart after a failure (tests run it at once). */
   backoff?: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
 }
@@ -101,6 +103,17 @@ const realOnce = async (argv: string[]): Promise<boolean> => {
     clearTimeout(timer);
     return code === 0;
   } catch { return false; }
+};
+
+const realGet = async (argv: string[]): Promise<string | null> => {
+  try {
+    const p = Bun.spawn(argv, { stdin: "ignore", stdout: "pipe", stderr: "ignore" });
+    const timer = setTimeout(() => p.kill(), 4000);
+    const out = await new Response(p.stdout).text();
+    const code = await p.exited;
+    clearTimeout(timer);
+    return code === 0 ? out : null;
+  } catch { return null; }
 };
 
 /** "unavailable": the adapter cannot be used (not in this build, perl missing, or it kept dying): use the Spotify/Music reader. */
@@ -120,6 +133,7 @@ export class NowPlayingStream {
   private startPromise: Promise<void> | undefined;
   private down = false; // gave up for good
   private artKey = "";
+  private refreshing: Promise<void> | undefined;
   private readonly now: () => number;
 
   constructor(private deps: RemoteDeps) {
@@ -223,9 +237,11 @@ export class NowPlayingStream {
         if (done) break;
         if (gen !== this.gen) return;
         for (const line of split.push(dec.decode(value, { stream: true }))) {
+          const mixed = mixedDiff(this.state, line);
           const ev = applyStreamLine(this.state, line);
           if (ev.kind !== "state") continue;
           this.state = ev.state;
+          if (mixed) void this.refresh(gen);
           this.gotData = true;
           this.failures = 0;
           this.wake();
@@ -239,6 +255,24 @@ export class NowPlayingStream {
     this.state = {};
     this.failed(gen);
     this.wake();
+  }
+
+  /**
+   * Reads the whole state again with a one-shot `get` (about 0.1 s) after a diff that would mix two items, so the title, position
+   * and duration on the tile come from one item. One read at a time; diffs that come meanwhile are merged as usual.
+   */
+  private refresh(gen: number): Promise<void> {
+    return (this.refreshing ??= (async () => {
+      try {
+        const files = await this.deps.files().catch(() => null);
+        if (!files) return;
+        const out = await (this.deps.get ?? realGet)([files.perl, files.script, files.framework, "get"]);
+        const fresh = out ? parseGet(out) : null;
+        if (fresh && gen === this.gen && this.proc) this.state = fresh;
+      } finally {
+        this.refreshing = undefined;
+      }
+    })());
   }
 
   /** The process ended (or never started) without being stopped: back off and restart, or give up. */
