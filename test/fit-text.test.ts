@@ -21,7 +21,7 @@ describe("fit-to-box", () => {
   });
   test("every numeric display is hooked: AnimatedNumber, delta, weather, media times, ring centres, entity values carry data-part=num", () => {
     expect(src("knowns.tsx")).toContain('data-part="num"');
-    expect(src("automation.tsx").match(/data-part="num"/g)!.length).toBeGreaterThanOrEqual(4);
+    expect(src("weather-tile.tsx").match(/data-part="num"/g)!.length).toBeGreaterThanOrEqual(4);
     expect(src("now-playing.tsx")).toContain('<span data-part="num">{formatTime(shownAt)}</span>');
     expect(src("charts.tsx")).toContain('class="pd-ring__t" data-part="num"');
     expect(src("metric-charts.tsx")).toContain('class="pd-ring__t" data-part="num"');
@@ -34,7 +34,7 @@ describe("fit-to-box", () => {
     expect(css).toMatch(/\.pd-tile__lb, \.pd-root \.pd-ios__lb \{[^}]*-webkit-line-clamp: 2/);
   });
   test("every fit selector refers to a class that exists in the deck source", () => {
-    const all = ["Deck.tsx", "widgets.tsx", "clocks.tsx", "automation.tsx", "plugin.tsx", "entity.tsx", "screen.tsx", "charts.tsx", "metric-charts.tsx", "ai.tsx"].map(src).join("\n");
+    const all = ["Deck.tsx", "widgets.tsx", "clocks.tsx", "automation.tsx", "weather-tile.tsx", "plugin.tsx", "entity.tsx", "screen.tsx", "charts.tsx", "metric-charts.tsx", "ai.tsx"].map(src).join("\n");
     for (const sel of [FIT_ROW, FIT_RING, FIT_LABEL].join(",").split(",")) {
       const cls = sel.trim().replace(/^\./, "").split(" ")[0]!;
       expect(all).toContain(cls);

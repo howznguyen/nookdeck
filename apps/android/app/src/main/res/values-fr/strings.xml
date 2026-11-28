@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nookdeck</string>
+    <string name="connecting">Connexion à votre ordinateur…</string>
+    <string name="searching">Recherche de Nookdeck sur ce Wi-Fi…</string>
+    <string name="found">Ordinateurs trouvés sur ce Wi-Fi :</string>
+    <string name="none_found">Aucun ordinateur trouvé. Nookdeck est-il lancé, et ce téléphone est-il sur le même Wi-Fi ?</string>
+    <string name="address_hint">Adresse affichée sur l’ordinateur, par exemple 192.168.1.10:7420</string>
+    <string name="open">Ouvrir</string>
+    <string name="retry">Chercher à nouveau</string>
+    <string name="usb_tip">Ou branchez le téléphone à l’ordinateur avec le débogage USB activé, puis cliquez sur Configurer dans l’onglet Devices de l’ordinateur.</string>
+    <string name="bad_address">Cette adresse ne répond pas.</string>
+    <string name="auto_retry">Nouvel essai automatique toutes les quelques secondes : il suffit de rebrancher le câble.</string>
+</resources>

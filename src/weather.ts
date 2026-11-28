@@ -5,9 +5,25 @@ import { convertTemp, tempUnitOf, type TempUnit } from "./temperature";
 
 export const WEATHER_TTL_MS = 15 * 60_000;
 
-export interface WeatherNow { temp: number; feels?: number; condition: string; code: number; icon: string; humidity?: number; wind?: number; isDay?: boolean }
+export interface WeatherNow {
+  temp: number; feels?: number; condition: string; code: number; icon: string; humidity?: number; wind?: number; isDay?: boolean;
+  /** Degrees the wind comes from (0 = north). */
+  windDir?: number;
+  /** The source's wind unit when it says one (Home Assistant); missing = km/h, or mph for imperial. */
+  windUnit?: string;
+  /** US AQI from the Open-Meteo air quality API (open-meteo source only); missing when that call failed. */
+  aqi?: number;
+}
 export interface WeatherHour { time: string; temp: number; condition: string; code: number; icon: string }
-export interface WeatherDay { date: string; min: number; max: number; condition: string; code: number; icon: string }
+export interface WeatherDay {
+  date: string; min: number; max: number; condition: string; code: number; icon: string;
+  /** Precipitation in mm. */
+  rain?: number;
+  /** Chance of precipitation, %. */
+  pop?: number;
+  /** Highest UV index of the day. */
+  uv?: number;
+}
 export interface WeatherData {
   now: WeatherNow;
   hourly: WeatherHour[];
@@ -63,6 +79,16 @@ const hassCond = (c: unknown) => { const x = HASS_CONDITION[String(c)]; return x
 
 const round = (n: unknown): number => Math.round(Number(n));
 const finite = (n: unknown) => typeof n === "number" && Number.isFinite(n);
+const round1 = (n: number) => Math.round(n * 10) / 10;
+/** A wind bearing as degrees: a number, or a compass word ("N", "SSW") as Home Assistant may send it. */
+const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+function bearingOf(v: unknown): number | undefined {
+  if (finite(v)) return ((round(v) % 360) + 360) % 360;
+  const i = typeof v === "string" ? COMPASS.indexOf(v.trim().toUpperCase()) : -1;
+  return i >= 0 ? Math.round(i * 22.5) : undefined;
+}
+/** Precipitation in mm from a value in `unit` ("mm", "in"). */
+const mmOf = (v: number, unit: unknown) => round1(String(unit ?? "").toLowerCase().startsWith("in") ? v * 25.4 : v);
 
 /** Open-Meteo forecast JSON -> WeatherData (12 hours from the current hour, 7 days). */
 export function parseOpenMeteo(j: any, o: { location: string; units: "metric" | "imperial"; tempUnit?: TempUnit; now: number }): WeatherData {
@@ -83,7 +109,13 @@ export function parseOpenMeteo(j: any, o: { location: string; units: "metric" | 
   const daily: WeatherDay[] = dates.slice(0, 7).map((d, i) => {
     const dc = Number(j.daily.weather_code?.[i] ?? 0);
     const dw = wmo(dc);
-    return { date: d, min: round(j.daily.temperature_2m_min?.[i]), max: round(j.daily.temperature_2m_max?.[i]), condition: dw.text, code: dc, icon: dw.icon };
+    const rain = j.daily.precipitation_sum?.[i], pop = j.daily.precipitation_probability_max?.[i], uv = j.daily.uv_index_max?.[i];
+    return {
+      date: d, min: round(j.daily.temperature_2m_min?.[i]), max: round(j.daily.temperature_2m_max?.[i]), condition: dw.text, code: dc, icon: dw.icon,
+      ...(finite(rain) ? { rain: round1(rain) } : {}),
+      ...(finite(pop) ? { pop: round(pop) } : {}),
+      ...(finite(uv) ? { uv: round1(uv) } : {}),
+    };
   });
   return {
     now: {
@@ -92,6 +124,7 @@ export function parseOpenMeteo(j: any, o: { location: string; units: "metric" | 
       condition: w.text, code, icon: c.is_day === 0 && w.icon === "sun" ? "moon" : w.icon,
       ...(finite(c.relative_humidity_2m) ? { humidity: round(c.relative_humidity_2m) } : {}),
       ...(finite(c.wind_speed_10m) ? { wind: round(c.wind_speed_10m) } : {}),
+      ...(finite(c.wind_direction_10m) ? { windDir: bearingOf(c.wind_direction_10m) } : {}),
       ...(c.is_day !== undefined ? { isDay: c.is_day === 1 } : {}),
     },
     hourly, daily, source: "open-meteo", location: o.location, units: o.units, tempUnit: o.tempUnit ?? (o.units === "imperial" ? "f" : "c"), updatedAt: o.now,
@@ -111,7 +144,12 @@ export function parseHassWeather(h: HassWeather, o: { location: string; tempUnit
   });
   const daily: WeatherDay[] = (h.daily ?? []).slice(0, 7).map((f: any) => {
     const dc = hassCond(f.condition);
-    return { date: String(f.datetime ?? "").slice(0, 10), min: T(f.templow ?? f.temperature), max: T(f.temperature), condition: dc.text, code: dc.code, icon: dc.icon };
+    return {
+      date: String(f.datetime ?? "").slice(0, 10), min: T(f.templow ?? f.temperature), max: T(f.temperature), condition: dc.text, code: dc.code, icon: dc.icon,
+      ...(finite(f.precipitation) ? { rain: mmOf(f.precipitation, a.precipitation_unit) } : {}),
+      ...(finite(f.precipitation_probability) ? { pop: round(f.precipitation_probability) } : {}),
+      ...(finite(f.uv_index) ? { uv: round1(f.uv_index) } : {}),
+    };
   });
   return {
     now: {
@@ -119,9 +157,17 @@ export function parseHassWeather(h: HassWeather, o: { location: string; tempUnit
       ...(finite(a.apparent_temperature) ? { feels: T(a.apparent_temperature) } : {}),
       ...(finite(a.humidity) ? { humidity: round(a.humidity) } : {}),
       ...(finite(a.wind_speed) ? { wind: round(a.wind_speed) } : {}),
+      ...(bearingOf(a.wind_bearing) !== undefined ? { windDir: bearingOf(a.wind_bearing) } : {}),
+      ...(typeof a.wind_speed_unit === "string" && a.wind_speed_unit ? { windUnit: a.wind_speed_unit } : {}),
     },
     hourly, daily, source: "hass", location: o.location, units: from === "f" ? "imperial" : "metric", tempUnit: to, updatedAt: o.now,
   };
+}
+
+/** The Open-Meteo air quality answer's current US AQI, rounded; undefined when it has none. */
+export function parseAirQuality(j: any): number | undefined {
+  const v = j?.current?.us_aqi;
+  return finite(v) && v >= 0 ? round(v) : undefined;
 }
 
 export interface GeoPlace { name: string; lat: number; lon: number; country?: string; admin?: string }
@@ -139,6 +185,7 @@ type Resolved = { kind: "hass"; entity: string } | { kind: "open-meteo"; lat: nu
 export class WeatherService {
   private cache = new Map<string, { at: number; data: WeatherData }>();
   private inflight = new Map<string, Promise<WeatherData>>();
+  private aqiCache = new Map<string, { at: number; aqi: number | undefined }>();
   constructor(private d: WeatherDeps = {}) {}
 
   private get now() { return (this.d.now ?? Date.now)(); }
@@ -209,15 +256,43 @@ export class WeatherService {
   private async fromOpenMeteo(lat: number, lon: number, name: string, units: "metric" | "imperial", tempUnit: TempUnit): Promise<WeatherData> {
     const q = new URLSearchParams({
       latitude: lat.toFixed(4), longitude: lon.toFixed(4),
-      current: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day",
-      hourly: "temperature_2m,weather_code", daily: "weather_code,temperature_2m_max,temperature_2m_min",
+      current: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,is_day",
+      hourly: "temperature_2m,weather_code",
+      daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,uv_index_max",
       timezone: "auto", forecast_days: "7",
       ...(tempUnit === "f" ? { temperature_unit: "fahrenheit" } : {}),
       ...(units === "imperial" ? { wind_speed_unit: "mph" } : {}),
     });
-    const res = await this.doFetch(`https://api.open-meteo.com/v1/forecast?${q}`);
+    const forecast = this.doFetch(`https://api.open-meteo.com/v1/forecast?${q}`);
+    // the air quality call runs alongside; it never throws
+    const aqi = this.aqi(lat, lon);
+    const res = await forecast;
     if (!res.ok) throw new Error(t("Open-Meteo returned {status}", { status: res.status }));
-    return parseOpenMeteo(await res.json(), { location: name, units, tempUnit, now: this.now });
+    const data = parseOpenMeteo(await res.json(), { location: name, units, tempUnit, now: this.now });
+    const a = await aqi;
+    if (a !== undefined) data.now.aqi = a;
+    return data;
+  }
+
+  /**
+   * US AQI for a place from the Open-Meteo air quality API, cached on its own with the weather TTL. Never throws: a failure (or an
+   * answer without a number) is `undefined`, the last good value is kept while it is younger than the TTL, and the weather answer goes
+   * out without the chip.
+   */
+  async aqi(lat: number, lon: number): Promise<number | undefined> {
+    const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+    const hit = this.aqiCache.get(key);
+    if (hit && this.now - hit.at < this.ttl) return hit.aqi;
+    try {
+      const q = new URLSearchParams({ latitude: lat.toFixed(4), longitude: lon.toFixed(4), current: "us_aqi", timezone: "auto" });
+      const res = await this.doFetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${q}`);
+      if (!res.ok) return undefined;
+      const v = parseAirQuality(await res.json());
+      this.aqiCache.set(key, { at: this.now, aqi: v });
+      return v;
+    } catch {
+      return undefined;
+    }
   }
 
   /** Place search for the management page (only the typed text leaves the machine). */

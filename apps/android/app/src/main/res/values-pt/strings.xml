@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nookdeck</string>
+    <string name="connecting">Conectando ao computador…</string>
+    <string name="searching">Procurando o Nookdeck nesta Wi-Fi…</string>
+    <string name="found">Computadores encontrados nesta Wi-Fi:</string>
+    <string name="none_found">Nenhum computador encontrado. O Nookdeck está aberto, e o celular está na mesma Wi-Fi?</string>
+    <string name="address_hint">Endereço mostrado no computador, por exemplo 192.168.1.10:7420</string>
+    <string name="open">Abrir</string>
+    <string name="retry">Procurar de novo</string>
+    <string name="usb_tip">Ou conecte o celular ao computador com a depuração USB ativada e clique em Configurar na aba Devices do computador.</string>
+    <string name="bad_address">Esse endereço não responde.</string>
+    <string name="auto_retry">Tenta de novo sozinho a cada poucos segundos: basta ligar o cabo de novo.</string>
+</resources>

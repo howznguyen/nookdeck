@@ -110,8 +110,17 @@ const store = {
   },
 }
 
+/** The phone model from an Android WebView user agent ("...; Android 13; SM-G981B Build/TP1A..." -> "SM-G981B"), else null. */
+export function uaModel(ua: string): string | null {
+  const m = /Android [\d.]+; ([^;)]+?)(?: Build\/[^;)]*)?[;)]/.exec(ua)
+  const model = m ? m[1].trim() : ''
+  return model && model !== 'K' && !/^wv$/i.test(model) ? model.slice(0, 40) : null
+}
+
 export function shortDeviceName(): string {
   const ua = navigator.userAgent || ''
+  // the Nookdeck Android app: the model says more than "Android Chrome"
+  if (/NookdeckApp\//.test(ua)) { const m = uaModel(ua); if (m) return m }
   let os = 'Phone'
   if (/iPhone/.test(ua)) os = 'iPhone'
   else if (/iPad/.test(ua)) os = 'iPad'
@@ -126,6 +135,39 @@ export function shortDeviceName(): string {
   else if (/Safari/.test(ua)) br = 'Safari'
   return br ? os + ' ' + br : os
 }
+
+/**
+ * The Android app opens the deck at <address>/#token=<64 hex>: keep it like a token from pairing, and take it out of the address bar
+ * and history. Each address (USB, Wi-Fi) is its own origin with its own storage, so the app passes the token every time.
+ */
+export function takeHashToken(hash: string): string | null {
+  const m = /^#token=([0-9a-f]{64})$/.exec(hash || '')
+  return m ? m[1] : null
+}
+/** Keep a #token from the address; true when it is a new one. */
+function keepHashToken(): boolean {
+  const tok = takeHashToken(location.hash)
+  if (!tok) return false
+  const fresh = store.get(K_TOKEN) !== tok
+  if (fresh) {
+    store.set(K_TOKEN, tok)
+    store.del(K_DEVICE)
+  }
+  history.replaceState(null, '', location.pathname + location.search)
+  return fresh
+}
+;(() => {
+  try {
+    keepHashToken()
+    // set up again over USB while the deck is open (say, after it was forgotten): the app opens the same page with a new #token,
+    // which only changes the hash and does not load the page again, so start over with the new token here
+    window.addEventListener('hashchange', () => {
+      if (keepHashToken()) location.reload()
+    })
+  } catch (e) {
+    /* not in a browser */
+  }
+})()
 
 export const savedDeviceName = () => store.get(K_NAME) || shortDeviceName()
 

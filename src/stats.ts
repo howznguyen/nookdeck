@@ -42,6 +42,81 @@ export interface Stats {
   volume: VolumeState | null; // output volume, null when unknown
   /** Omitted when unknown (Linux, no GPU, a failed read). */
   gpu?: GpuStats;
+  /** Logical CPU count (load per core). */
+  ncpu: number;
+  /** Per-core busy percent (whole numbers), same order as os.cpus(); omitted when the core count changed between samples. */
+  cores?: number[];
+  /** Memory beyond used/total when the OS tells: file cache (reclaimable) and swap, in bytes. */
+  mem?: MemDetail;
+}
+
+/** File cache and swap in bytes; every field optional (Windows gives none). */
+export interface MemDetail {
+  cached?: number;
+  swapUsed?: number;
+  swapTotal?: number;
+}
+
+/** Pure: per-core busy percent between two os.cpus() samples, or undefined when the core count differs. */
+export function coreDeltas(prev: ReturnType<typeof cpus>, cur: ReturnType<typeof cpus>): number[] | undefined {
+  if (!prev.length || prev.length !== cur.length) return undefined;
+  return cur.map((c, i) => Math.round(cpuDelta(readCpuTimes([prev[i]!]), readCpuTimes([c]))));
+}
+
+/** Pure: file-backed (cached) bytes from `vm_stat`: "File-backed pages", else inactive + speculative + purgeable. */
+export function parseVmStatCached(output: string): number | undefined {
+  const pageSize = Number(/page size of (\d+) bytes/i.exec(output)?.[1]);
+  if (!pageSize) return undefined;
+  const pages = (label: RegExp) => { const m = label.exec(output); return m ? Number(m[1]) : undefined; };
+  const file = pages(/^File-backed pages:\s+(\d+)/m);
+  if (file !== undefined) return file * pageSize;
+  const inactive = pages(/^Pages inactive:\s+(\d+)/m);
+  if (inactive === undefined) return undefined;
+  return (inactive + (pages(/^Pages speculative:\s+(\d+)/m) ?? 0) + (pages(/^Pages purgeable:\s+(\d+)/m) ?? 0)) * pageSize;
+}
+
+/** Pure: `sysctl vm.swapusage` ("total = 8192.00M  used = 6711.44M ...") -> bytes, or undefined. */
+export function parseSwapUsage(output: string): { swapUsed: number; swapTotal: number } | undefined {
+  const unit = (n: string, u: string) => Number(n) * (u === "G" ? 1024 * 1024 * 1024 : u === "K" ? 1024 : 1024 * 1024);
+  const t = /total\s*=\s*([\d.]+)([KMG])/.exec(output);
+  const u = /used\s*=\s*([\d.]+)([KMG])/.exec(output);
+  if (!t || !u) return undefined;
+  const swapTotal = Math.round(unit(t[1]!, t[2]!));
+  const swapUsed = Math.round(unit(u[1]!, u[2]!));
+  if (!Number.isFinite(swapTotal) || !Number.isFinite(swapUsed)) return undefined;
+  return { swapTotal, swapUsed: Math.min(swapUsed, swapTotal) };
+}
+
+/** Pure: keeps only sane fields (finite, >= 0, cached at most `free` = total - used, swap used at most swap total). */
+export function cleanMemDetail(raw: any, free: number): MemDetail | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const ok = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+  const out: MemDetail = {};
+  if (ok(raw.cached)) out.cached = Math.round(Math.min(raw.cached, Math.max(0, free)));
+  if (ok(raw.swapTotal) && raw.swapTotal > 0) {
+    out.swapTotal = Math.round(raw.swapTotal);
+    out.swapUsed = ok(raw.swapUsed) ? Math.round(Math.min(raw.swapUsed, raw.swapTotal)) : 0;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Memory detail never holds up a tick either: read in the background at most every MEM_REFRESH_MS. */
+const MEM_REFRESH_MS = 10000;
+let memLast: MemDetail | undefined;
+let memAt = 0;
+let memBusy = false;
+function readMemDetail(): MemDetail | undefined {
+  const now = Date.now();
+  const read = platform.memDetail;
+  if (read && !memBusy && now - memAt >= MEM_REFRESH_MS) {
+    memBusy = true;
+    memAt = now;
+    Promise.resolve()
+      .then(() => read.call(platform))
+      .then((raw) => { memLast = raw || undefined; }, () => { memLast = undefined; })
+      .finally(() => { memBusy = false; });
+  }
+  return memLast;
 }
 
 export type NetCounters = Record<string, { rx: number; tx: number }>;
@@ -200,6 +275,7 @@ export function startStats(onTick: (s: Stats) => void, intervalMs = 2000): () =>
   let stopped = false;
   let busy = false;
   let prev = readCpuTimes();
+  let prevCores = cpus();
   let prevNet: NetCounters | undefined;
   let prevNetAt = 0;
   const estimator = new LoadEstimator();
@@ -211,11 +287,16 @@ export function startStats(onTick: (s: Stats) => void, intervalMs = 2000): () =>
     if (stopped || busy) return;
     busy = true;
     try {
-      const cur = readCpuTimes();
+      const curCores = cpus();
+      const cur = readCpuTimes(curCores);
       const cpu = cpuDelta(prev, cur);
+      const cores = coreDeltas(prevCores, curCores);
       prev = cur;
+      prevCores = curCores;
       const [used, netNow] = await Promise.all([memUsed(), readNet()]);
       const gpu = readGpu();
+      const total = totalmem();
+      const mem = cleanMemDetail(readMemDetail(), total - used);
       if (stopped) return;
       const at = Date.now();
       const net = prevNet && netNow ? netRate(prevNet, netNow, (at - prevNetAt) / 1000) : { rx: 0, tx: 0 };
@@ -227,7 +308,7 @@ export function startStats(onTick: (s: Stats) => void, intervalMs = 2000): () =>
       let load: [number, number, number];
       if (kind === "estimate") { load = estimator.update((cpu / 100) * cpus().length, prevLoadAt ? (at - prevLoadAt) / 1000 : 0); prevLoadAt = at; }
       else { const [l1 = 0, l5 = 0, l15 = 0] = loadavg(); load = [l1, l5, l15]; }
-      onTick({ cpu, memUsed: used, memTotal: totalmem(), uptime: uptime(), load, loadKind: kind, time: at, host, net, volume: getVolumeCached(), ...(gpu ? { gpu } : {}) });
+      onTick({ cpu, memUsed: used, memTotal: total, uptime: uptime(), load, loadKind: kind, time: at, host, net, volume: getVolumeCached(), ncpu: curCores.length || 1, ...(cores ? { cores } : {}), ...(mem ? { mem } : {}), ...(gpu ? { gpu } : {}) });
     } catch {
       // a failed sample must not kill the loop
     } finally {

@@ -55,6 +55,9 @@ export function demoStats(t: number): Stats {
     net: { rx: (2.4 + 1.1 * wave(t, 4, 0.6)) * 1024 * 1024, tx: (245 + 90 * wave(t, 5, 0.45)) * 1024 },
     volume: { level: 62, muted: false },
     gpu: { util: Math.round(46 + 18 * wave(t, 6, 0.4)), memUsed: 3.4 * GB, memTotal: 8 * GB, temp: Math.round(61 + 3 * wave(t, 7, 0.2)), name: 'Sample GPU' },
+    ncpu: 8,
+    cores: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => Math.max(0, Math.min(100, Math.round(cpu + 22 * wave(t, 8 + i, 0.5) - i * 4)))),
+    mem: { cached: 3.1 * GB, swapUsed: 0.4 * GB, swapTotal: 2 * GB },
   } as Stats
 }
 

@@ -118,6 +118,16 @@ describe("clock options", () => {
     expect(() => validateLayout(page({ timeZone: "Mars/Olympus" }))).toThrow("not a known time zone");
     expect(() => validateLayout(page({ zones: ["UTC", "UTC", "UTC", "UTC", "UTC"] }))).toThrow("up to 4");
   });
+  test("the new styles are accepted", () => {
+    for (const style of ["weather", "lunar", "bloc", "segment", "ring", "stack", "ticks", "dither"]) expect((validateLayout(page({ style })).pages[0]!.items[0] as any).clock).toEqual({ style });
+  });
+  test("clock.weather is validated like the weather widget's options", () => {
+    const c = { style: "weather", weather: { source: "open-meteo", location: { name: "Hue", lat: 16.46, lon: 107.59 }, units: "imperial" } };
+    expect((validateLayout(page(c)).pages[0]!.items[0] as any).clock).toEqual(c);
+    expect(() => validateLayout(page({ style: "weather", weather: { source: "nope" } }))).toThrow("clock.weather.source");
+    expect(() => validateLayout(page({ style: "weather", weather: { location: { name: "X", lat: 200, lon: 0 } } }))).toThrow("clock.weather.location.lat");
+    expect((validateLayout(page({ style: "weather", weather: {} })).pages[0]!.items[0] as any).clock).toEqual({ style: "weather" });
+  });
   test("clock options are dropped on other widgets", () => {
     const l = validateLayout({ version: 1, pages: [{ id: "p", name: "P", columns: 4, rows: 1, items: [{ id: "c", kind: "widget", widget: "cpu", clock: { style: "flip" } }] }] });
     expect((l.pages[0]!.items[0] as any).clock).toBeUndefined();

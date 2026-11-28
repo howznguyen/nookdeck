@@ -205,6 +205,13 @@ export function createDarwin(): Platform {
       try { return parseNetstat(await runCapture(["netstat", "-ibn"], 3000)); } catch { return undefined; }
     },
     memUsed: macMemUsed,
+    async memDetail() {
+      const { parseVmStatCached, parseSwapUsage } = await import("../stats");
+      const [vm, sw] = await Promise.all([runCapture(["vm_stat"], 3000).catch(() => ""), runCapture(["sysctl", "-n", "vm.swapusage"], 3000).catch(() => "")]);
+      const cached = parseVmStatCached(vm);
+      const swap = parseSwapUsage(sw);
+      return cached === undefined && !swap ? undefined : { ...(cached !== undefined ? { cached } : {}), ...(swap || {}) };
+    },
     async gpu() {
       try { return (await mac().call("gpu", {}, MAC_READ_TIMEOUT_MS)) ?? undefined; } catch { return undefined; }
     },

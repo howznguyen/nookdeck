@@ -94,6 +94,15 @@ describe("legacy widget kinds map to core plugins (D7)", () => {
     expect([...layoutPluginTiles(layout).keys()]).toEqual(["wx", "q1", "pl"]);
     expect(JSON.stringify(layout)).toBe(before);
   });
+  test("a weather-style clock maps to core.weather showing now, other clocks do not map", () => {
+    const clk = { id: "ck", kind: "widget", widget: "clock", clock: { style: "weather", weather: { source: "open-meteo", location: { name: "Hue", lat: 16.46, lon: 107.59 }, show: "daily", units: "imperial" } } } as any;
+    expect(legacyRef(clk)).toEqual({ id: "core.weather", widget: "weather", settings: { source: "open-meteo", locationName: "Hue", lat: 16.46, lon: 107.59, show: "now", units: "imperial" } });
+    expect(legacyRef({ id: "c0", kind: "widget", widget: "clock", clock: { style: "weather" } } as any)).toEqual({ id: "core.weather", widget: "weather", settings: { show: "now" } });
+    expect(legacyRef({ id: "c1", kind: "widget", widget: "clock", clock: { style: "lunar", weather: { source: "hass" } } } as any)).toBeNull();
+    expect(legacyRef({ id: "c2", kind: "widget", widget: "clock" } as any)).toBeNull();
+    const l: any = { version: 1, pages: [{ id: "p", name: "P", items: [clk, { id: "c2", kind: "widget", widget: "clock" }] }] };
+    expect([...layoutPluginTiles(l).keys()]).toEqual(["ck"]);
+  });
   test("the flat settings give back the same weather options", () => {
     const o = weatherOptionsOf(legacyRef({ id: "wx", kind: "widget", widget: "weather", weather: { source: "hass", entity: "weather.home", show: "now" } } as any)!.settings as any);
     expect(o).toEqual({ source: "hass", entity: "weather.home", show: "now" });

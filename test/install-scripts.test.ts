@@ -20,7 +20,28 @@ const osTag = mac ? "darwin" : "linux";
 const fetching = (gz: boolean) => new RegExp(`Fetching nookdeck-${osTag}-(arm64|x64)${gz ? "\\.gz" : ""} \\(\\d+ MB\\)`);
 const sandbox = mkdtempSync(join(tmpdir(), "pd-inst-"));
 const spawned: number[] = [];
-afterAll(() => { for (const pid of spawned) try { process.kill(pid); } catch { /* gone */ } });
+/** Every fake home: setup.sh may start an agent there (detached, ppid 1), and a test that fails or times out never records its pid. */
+const homes: string[] = [];
+/** Stops every agent these tests started: the recorded pids plus whatever agent.pid each fake home holds, even after a failed test. */
+function stopAgents() {
+  const pids = new Set(spawned);
+  for (const h of homes) {
+    try { const p = Number(readFileSync(join(h, ".nookdeck", "agent.pid"), "utf8")); if (p > 0) pids.add(p); } catch { /* no agent there */ }
+  }
+  for (const pid of pids) try { process.kill(pid, "SIGTERM"); } catch { /* gone */ }
+  // the agent's media helper (perl) exits with it; anything still alive after a moment gets SIGKILL
+  const until = Date.now() + 1500;
+  for (const pid of pids) {
+    while (Date.now() < until) { try { process.kill(pid, 0); } catch { break; } Bun.sleepSync(50); }
+    try { process.kill(pid, "SIGKILL"); } catch { /* gone */ }
+  }
+  spawned.length = 0;
+  homes.length = 0;
+}
+afterAll(stopAgents);
+// also when the runner is interrupted or stops the file early
+process.on("exit", stopAgents);
+for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => { stopAgents(); process.exit(130); });
 
 const sha = (f: string) => createHash("sha256").update(readFileSync(f)).digest("hex");
 const bunPath = process.execPath;
@@ -63,7 +84,7 @@ function env(home: string, release: string, extra: Record<string, string> = {}) 
 }
 const sh = (script: string, args: string[], e: Record<string, string>) => Bun.spawnSync(["bash", join(root, script), ...args], { env: e, stdout: "pipe", stderr: "pipe", stdin: new Blob([""]) });
 const out = (r: ReturnType<typeof sh>) => r.stdout.toString() + r.stderr.toString();
-const newHome = () => { const h = mkdtempSync(join(sandbox, "home-")); mkdirSync(join(h, "fake-home"), { recursive: true }); return h; };
+const newHome = () => { const h = mkdtempSync(join(sandbox, "home-")); mkdirSync(join(h, "fake-home"), { recursive: true }); homes.push(h); return h; };
 
 describe.skipIf(!unix)("setup.sh: compressed assets", () => {
   const run = (release: string, home = newHome()) => ({ home, r: sh("setup.sh", ["--yes", "--no-autostart", "--no-start", "--no-open"], env(home, release)) });

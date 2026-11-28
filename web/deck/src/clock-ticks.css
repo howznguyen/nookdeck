@@ -1,0 +1,68 @@
+/* ticks clock style (clocks.tsx Ticks): 60 marks round the tile's rounded outline + a big condensed time.
+   Safari 12: no flex gap, no clamp(), -webkit- prefixes. */
+/* .pd-tck itself stays unpositioned so the ring below measures and fills the tile, not the padded content box */
+/* the ring covers the tile's inner box: the tile (.pd-tile, position: relative) is its containing block */
+.pd-tck__ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.pd-tck__i {
+  -webkit-transition: none;
+  transition: none;
+}
+/* the newly lit tick fades in over its one second, linear like the ring arc (kn-motion: follows a clock) */
+.pd-tck__i--new {
+  -webkit-transition: opacity 1s linear;
+  transition: opacity 1s linear;
+}
+/* the time and its lines paint above the ring */
+.pd-tck > .pd-clk__l,
+.pd-tck > .pd-clock__d,
+.pd-tck__t {
+  position: relative;
+}
+.pd-root .pd-tck__t,
+.pd-tck__t {
+  font-family: var(--pd-ff-num, 'DIN Condensed', 'Roboto Condensed', 'Arial Narrow', sans-serif-condensed, var(--pd-ff, sans-serif));
+  font-weight: 700;
+  font-stretch: condensed;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pd-tck__col {
+  display: inline-block;
+  margin: 0 0.02em;
+  -webkit-transform: translateY(-0.06em);
+  transform: translateY(-0.06em);
+  -webkit-transition: opacity var(--pd-dur-fast, 120ms) var(--pd-ease-out, ease-out);
+  transition: opacity var(--pd-dur-fast, 120ms) var(--pd-ease-out, ease-out);
+}
+.pd-tck__col--off {
+  opacity: 0.25;
+}
+.pd-tck__ap {
+  margin-left: 0.3em;
+  font-family: var(--pd-ff, inherit);
+  font-weight: 600;
+  font-stretch: normal;
+  letter-spacing: 0.02em;
+  color: var(--pd-muted);
+}
+.pd-tck__ap.pd-ck__pre {
+  margin: 0 0.3em 0 0;
+}
+.pd-tck .pd-clock__d {
+  margin-top: 0.5em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pd-tck__i--new,
+  .pd-tck__col {
+    -webkit-transition: none;
+    transition: none;
+  }
+}

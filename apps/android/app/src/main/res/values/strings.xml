@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nookdeck</string>
+    <string name="connecting">Connecting to your computer…</string>
+    <string name="searching">Looking for Nookdeck on this Wi-Fi…</string>
+    <string name="found">Computers found on this Wi-Fi:</string>
+    <string name="none_found">No computer found. Is Nookdeck running, and is this phone on the same Wi-Fi?</string>
+    <string name="address_hint">Address shown on the computer, like 192.168.1.10:7420</string>
+    <string name="open">Open</string>
+    <string name="retry">Search again</string>
+    <string name="usb_tip">Or plug the phone into the computer with USB debugging on, and click Set up on the computer\'s Devices tab.</string>
+    <string name="bad_address">That address does not answer.</string>
+    <string name="auto_retry">Trying again by itself every few seconds: plugging the cable back in is enough.</string>
+</resources>

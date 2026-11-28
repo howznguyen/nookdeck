@@ -22,7 +22,7 @@ describe("units", () => {
 
 describe("weather follows the unit", () => {
   const svcFor = (attrs: any, urls: string[] = []) => new WeatherService({
-    fetch: async (u) => { urls.push(u); return Response.json({ current: { time: "2026-11-17T10:00", temperature_2m: 77, weather_code: 0 }, hourly: { time: [], temperature_2m: [], weather_code: [] }, daily: { time: [], weather_code: [], temperature_2m_max: [], temperature_2m_min: [] } }); },
+    fetch: async (u) => { if (!u.includes("air-quality")) urls.push(u); return Response.json({ current: { time: "2026-11-17T10:00", temperature_2m: 77, weather_code: 0 }, hourly: { time: [], temperature_2m: [], weather_code: [] }, daily: { time: [], weather_code: [], temperature_2m_max: [], temperature_2m_min: [] } }); },
     hass: () => ({ connected: () => true, getState: () => undefined, callService: async () => {}, weather: async () => ({ state: "sunny", attributes: attrs, hourly: [{ datetime: "t", temperature: 20, condition: "sunny" }], daily: [{ datetime: "2026-11-17", temperature: 30, templow: 10, condition: "sunny" }] }) }),
   });
   test("HA in C shown as F (now, feels, hourly, daily), and HA in F shown as C", async () => {

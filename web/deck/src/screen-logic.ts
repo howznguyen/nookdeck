@@ -312,6 +312,24 @@ export const browserShiftHost = (): ShiftHost => ({
 
 export const pad2 = (n: number) => (n < 10 ? '0' : '') + n
 
+/** The Nookdeck Android app (its WebView adds `NookdeckApp/<version>` to the user agent) is fullscreen and keeps the screen on itself. */
+export const inNookdeckApp = (ua: string): boolean => /NookdeckApp\//.test(ua)
+
+/**
+ * Ask the Nookdeck Android app to hold the screen the layout's way ("landscape", "portrait", or "auto" for the phone's own setting).
+ * Returns false in a browser, where the deck keeps rotating itself in CSS.
+ */
+export function askAppOrientation(w: { NookdeckApp?: { setOrientation?: (o: string) => void } }, orient: string): boolean {
+  const app = w.NookdeckApp
+  if (!app || typeof app.setOrientation !== 'function') return false
+  try {
+    app.setOrientation(orient)
+    return true
+  } catch {
+    return false
+  }
+}
+
 const K_AWAKE_HINT = 'pd.awakeHint'
 /**
  * Android browsers give a page on http://<LAN address> no Wake Lock (it needs HTTPS), and Chrome no longer keeps the screen on for a
@@ -319,7 +337,8 @@ const K_AWAKE_HINT = 'pd.awakeHint'
  * iPhones and iPads keep the video trick, which still works there.
  */
 export function awakeHintNeeded(ua: string, hasWakeLock: boolean, keepAwake: boolean, dismissed: boolean): boolean {
-  return keepAwake && !hasWakeLock && !dismissed && /Android/i.test(ua)
+  // the Nookdeck Android app keeps the screen on itself
+  return keepAwake && !hasWakeLock && !dismissed && /Android/i.test(ua) && !inNookdeckApp(ua)
 }
 export const awakeHintDismissed = (): boolean => store.get(K_AWAKE_HINT) === '1'
 export const dismissAwakeHint = (): void => store.set(K_AWAKE_HINT, '1')

@@ -13,7 +13,7 @@ import { linuxInputBackend, linuxSession, ydotoolGeneration } from "./linux-inpu
 import type { LinuxInputTool } from "./linux-keys";
 import { createLinuxApps } from "./linux-apps";
 import { activateX11App } from "./linux-activate";
-import { NVIDIA_SMI_ARGS, fileUrlPath, imageMime, parseMeminfo, parseNvidiaSmi, parseXprintidle } from "./linux-sys";
+import { NVIDIA_SMI_ARGS, fileUrlPath, imageMime, parseMeminfo, parseMeminfoDetail, parseNvidiaSmi, parseXprintidle } from "./linux-sys";
 import { shrinkPng } from "./png";
 import { PACTL_GET_SOURCE_MUTE, PACTL_GET_SOURCE_VOLUME, PACTL_SHORT_SOURCES, PACTL_SOURCE_OUTPUTS, cameraApps, micApps, pactlSourceMuteCommand, parseShortSources, parseSourceMute, parseSourceOutputs, type ProcFs } from "./linux-av";
 
@@ -149,6 +149,9 @@ export function createLinux(
     },
     async memUsed() {
       try { return parseMeminfo(await readText("/proc/meminfo")); } catch { return undefined; }
+    },
+    async memDetail() {
+      try { return parseMeminfoDetail(await readText("/proc/meminfo")); } catch { return undefined; }
     },
     async nowPlayingStatus() { return { ok: false, why: "macOS only" }; },
     async gpu() {

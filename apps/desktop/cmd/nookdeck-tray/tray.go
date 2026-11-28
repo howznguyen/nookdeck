@@ -86,6 +86,8 @@ var state struct {
 	checking bool
 	unreach  bool
 	firewall bool // the doctor's Firewall item says phones cannot connect (Windows)
+	android  *core.UsbPhone // an Android phone on the USB cable that waits for setup (nil: none)
+	androidK string         // how: setup, update, allow
 }
 
 func client() *core.Client {
@@ -111,7 +113,7 @@ func manageURL() string { return client().ManageURL() }
 // ---------- the menu (A6) ----------
 
 var (
-	mStatus, mPhones, mPair, mManage, mFirewall, mToggle, mRestart, mUpdate, mUpdateNow, mLogin *systray.MenuItem
+	mStatus, mPhones, mPair, mManage, mFirewall, mAndroid, mToggle, mRestart, mUpdate, mUpdateNow, mLogin *systray.MenuItem
 	mHelp, mDoctor, mLogs, mDocs, mSite, mVersion, mQuit                                        *systray.MenuItem
 	mStar, mKofi                                                                                *systray.MenuItem
 	pair                                                                                        *core.PairServer
@@ -132,6 +134,8 @@ func onReady() {
 	mManage = systray.AddMenuItem(t("menu.openManage"), "")
 	mFirewall = systray.AddMenuItem(t("menu.allowPhones"), "") // Windows: shown while the firewall keeps phones out
 	mFirewall.Hide()
+	mAndroid = systray.AddMenuItem(t("menu.androidSetup", "model", ""), "") // shown while an Android phone on the cable waits for setup
+	mAndroid.Hide()
 	systray.AddSeparator()
 	mToggle = systray.AddMenuItem(t("menu.stop"), "")
 	mRestart = systray.AddMenuItem(t("menu.restart"), "")
@@ -175,6 +179,8 @@ func onReady() {
 				openURL(manageURL())
 			case <-mFirewall.ClickedCh:
 				go fixFirewall()
+			case <-mAndroid.ClickedCh:
+				go setupAndroid()
 			case <-mToggle.ClickedCh:
 				go toggle()
 			case <-mRestart.ClickedCh:
@@ -292,7 +298,49 @@ func poll() {
 	state.firewall = reachable && firewallFixable && core.FirewallProblem(doc) != nil
 	state.phones = core.Online(ds)
 	state.mu.Unlock()
+	pollAndroid(reachable)
 	render()
+}
+
+// pollAndroid asks the agent which Android phone on the cable waits for setup (what its USB watcher saw last: no adb runs here).
+func pollAndroid(reachable bool) {
+	var p *core.UsbPhone
+	kind := ""
+	if reachable {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		if s, err := client().AndroidPeek(ctx); err == nil && s.Adb != nil {
+			p, kind = core.AndroidOffer(s)
+		}
+		cancel()
+	}
+	state.mu.Lock()
+	state.android, state.androidK = p, kind
+	state.mu.Unlock()
+}
+
+// setupAndroid installs the app on the phone, links it through the cable, pairs it and opens the deck, then says how it went.
+func setupAndroid() {
+	state.mu.Lock()
+	p, kind := state.android, state.androidK
+	state.mu.Unlock()
+	if p == nil || kind == "allow" {
+		return
+	}
+	setBusy("status.androidSetup")
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	model, err := client().AndroidSetup(ctx, p.Serial)
+	cancel()
+	setBusy("")
+	name := core.PhoneName(lang, p)
+	if err != nil {
+		notice(t("android.failed", "model", name, "error", err.Error()))
+	} else {
+		if model == "" {
+			model = name
+		}
+		notice(t("android.done", "model", model))
+	}
+	poll()
 }
 
 // render shows the state: tray icon and tooltip, the status line, the phone count and the labels of Start/Stop.
@@ -307,6 +355,20 @@ func render() {
 		mFirewall.Show()
 	} else {
 		mFirewall.Hide()
+	}
+	state.mu.Lock()
+	ap, ak := state.android, state.androidK
+	state.mu.Unlock()
+	if ap == nil {
+		mAndroid.Hide()
+	} else {
+		mAndroid.SetTitle(t(map[string]string{"setup": "menu.androidSetup", "update": "menu.androidUpdate", "allow": "menu.androidAllow"}[ak], "model", core.PhoneName(lang, ap)))
+		if ak == "allow" || busy != "" {
+			mAndroid.Disable()
+		} else {
+			mAndroid.Enable()
+		}
+		mAndroid.Show()
 	}
 	line := map[core.State]string{core.StateRunning: "status.running", core.StateStopped: "status.stopped", core.StateAttention: "status.needsPermission"}[st]
 	if st == core.StateAttention && unreach {

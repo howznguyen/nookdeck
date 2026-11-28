@@ -6,6 +6,7 @@ import { ControlSheet } from './hass-controls'
 import { demoHist, demoStats } from './demo-lib'
 import { installFit } from './fit'
 import { naturalColor, HIST_LEN, Widget, type Hist } from './widgets'
+import { setProcessSource } from './stats-tile'
 import { DeckClient, savedDeviceName, type ClientState } from './client'
 import { setTempUnit } from './temp'
 import { DEMO, shade, applyTheme, readableOn, tint, over, backdropOf, tileKind, setPalette, kindsCss, fontFaceCss, effectiveTheme } from './theme'
@@ -21,7 +22,7 @@ import { coreTileOf, previewSlot } from './plugin-logic'
 import { CameraView, setCameraBase } from './camera'
 import { previewSound } from './alarm-sound'
 import type { PluginSlot } from './plugin-logic'
-import { awakeHintDismissed, awakeHintNeeded, browserShiftHost, dismissAwakeHint, headerMode, keepAwakeOn, liteOn, localScreen, onLocalScreen, runShift, shiftOn } from './screen-logic'
+import { awakeHintDismissed, awakeHintNeeded, browserShiftHost, dismissAwakeHint, headerMode, inNookdeckApp, askAppOrientation, keepAwakeOn, liteOn, localScreen, onLocalScreen, runShift, shiftOn } from './screen-logic'
 import type { PermissionRequest, QuestionRequest, WeatherData, PushedValue, Notice, GotoReq, HassEntity, HassState, IconAssets, AiData, Item, Layout, Media, MediaCommand, Orientation, Page, Stats, Theme, TileStyle } from './types'
 
 export { Icon }
@@ -70,6 +71,9 @@ const SAMPLE_STATS: Stats = {
   net: { rx: 2.4 * 1024 * 1024, tx: 245 * 1024 },
   volume: { level: 62, muted: false },
   gpu: { util: 46, memUsed: 3.4 * GB, memTotal: 8 * GB, temp: 61, name: 'Sample GPU' },
+  ncpu: 8,
+  cores: [62, 48, 41, 35, 30, 22, 18, 12],
+  mem: { cached: 3.1 * GB, swapUsed: 0.4 * GB, swapTotal: 2 * GB },
 }
 const SAMPLE_MEDIA: Media = {
   app: 'Spotify',
@@ -943,6 +947,9 @@ function PairForm(props: { client: DeckClient; notice: string; pin?: string }) {
           <Mark size={52} />
           <h1>Nookdeck</h1>
         </div>
+        {inNookdeckApp(navigator.userAgent) ? (
+          <p class="pd-hint pd-hint--app" data-part="app-setup-hint">{t('Phone plugged into the computer? On the computer, open the Devices tab and click Set up under Android phone over USB: no PIN needed.')}</p>
+        ) : null}
         <p class="pd-muted">{t('Enter the 6-digit PIN shown on your computer.')}</p>
         <PinInput value={pin} onChange={setPin} />
         <label class={'pd-scan' + (scanning || busy ? ' pd-scan--off' : '')}>
@@ -992,6 +999,8 @@ export function Deck(props: DeckProps) {
   const preview = !!props.preview
   const client = useMemo(() => new DeckClient(props.baseUrl), [props.baseUrl])
   setCameraBase(props.baseUrl || '')
+  // big cpu / memory tiles list the top processes; a preview deck draws sample rows and never asks
+  if (!preview) setProcessSource((sort, n) => client.processes(sort, n))
   const liteRef = useRef(false)
   const live = useClientState(client, liteRef)
   const [, bumpLocal] = useState(0)
@@ -1121,6 +1130,11 @@ export function Deck(props: DeckProps) {
         WebkitTransform: 'translateX(' + vp.w + 'px) rotate(90deg)',
       }
     : undefined
+
+  // inside the Nookdeck Android app, Android turns the screen to the layout's orientation, so the CSS rotation above is not needed there
+  useEffect(() => {
+    if (!preview) askAppOrientation(window as any, orient)
+  }, [orient, preview])
 
   useEffect(() => {
     const on = () => {
@@ -1980,7 +1994,7 @@ export function Deck(props: DeckProps) {
   const statusText = st.status === 'pair' ? t('not paired') : st.status === 'online' ? t('connected') : st.status === 'connecting' ? t('connecting') : t('disconnected') + (st.closeCode ? ' (' + st.closeCode + ')' : '')
   const cur = pages[pageIdx]
   const canClose = !props.standalone && !preview && !!props.onClose
-  const showFs = !preview && fsSupported() && st.status !== 'pair'
+  const showFs = !preview && fsSupported() && st.status !== 'pair' && !inNookdeckApp(navigator.userAgent)
   const theme = (st.layout && st.layout.theme) || {}
   const lite = liteOn(theme.screen)
   const [menu, setMenu] = useState(false)
@@ -2189,7 +2203,7 @@ export function Deck(props: DeckProps) {
                             hassConnected={hass ? hass.connected : true}
                             wxData={st.weather ? st.weather[it.id] : undefined}
                             pushed={it.push && st.pushed ? st.pushed[it.push.key] : undefined}
-                            plug={it.widget === 'plugin' ? (preview ? previewSlot(pv.pluginData, it.id, it.plugin ? it.plugin.widget : it.id, it.plugin ? it.plugin.id : undefined) : st.plugins ? st.plugins[it.id] : null) : (it.widget === 'weather' || it.widget === 'quota') && !preview && st.plugins ? st.plugins[it.id] : undefined}
+                            plug={it.widget === 'plugin' ? (preview ? previewSlot(pv.pluginData, it.id, it.plugin ? it.plugin.widget : it.id, it.plugin ? it.plugin.id : undefined) : st.plugins ? st.plugins[it.id] : null) : (it.widget === 'weather' || it.widget === 'quota' || (it.widget === 'clock' && !!it.clock && it.clock.style === 'weather')) && !preview && st.plugins ? st.plugins[it.id] : undefined}
                             notes={st.notes}
                             entPend={it.entity ? pend[it.entity.id] : undefined}
                             onCard={pressCard}

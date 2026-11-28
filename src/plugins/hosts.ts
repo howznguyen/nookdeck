@@ -11,9 +11,16 @@ import type { TileSize, WidgetTile } from "./api";
 import { PluginServices, type WebSocketLike } from "./capabilities";
 import { PluginLog, PluginProcess, hostArgv, realSpawn, type ProcessInfo, type SpawnFn } from "./process";
 import type { PluginStore } from "./store";
-import type { SourceDeps } from "./sources";
+import { resolveSettings, type SourceDeps } from "./sources";
 
 /** A plugin that must keep running without a phone asking: it reports On Air or sends notifications (reminders, a timer's end). */
+/**
+ * What `ctx.settings.get()` returns: the plugin's saved settings over the manifest defaults, coerced like a provider's, so a
+ * plugin with nothing saved yet sees `{ coins: "BTC, ETH, SOL" }` rather than `{}`.
+ */
+export const ownSettings = (e: { manifest: { settings: Parameters<typeof resolveSettings>[0] }; state: { settings?: Parameters<typeof resolveSettings>[1][number] } } | undefined): Settings =>
+  e ? resolveSettings(e.manifest.settings, [e.state.settings]) : {};
+
 const alwaysOn = (g: { onair?: boolean; notify?: boolean } | null | undefined): boolean => !!(g?.onair || g?.notify);
 
 export interface HostsDeps extends SourceDeps {
@@ -95,13 +102,13 @@ export class PluginHosts {
       notify: (n) => this.deps.notify?.(id, n),
     });
     const slot: Slot = {
-      version: e.state.version, sha: e.state.sha256, settingsJson: JSON.stringify(e.state.settings), every: {}, log,
+      version: e.state.version, sha: e.state.sha256, settingsJson: JSON.stringify(ownSettings(e)), every: {}, log,
       proc: new PluginProcess({
         id, dir, entry: join(dir, e.manifest.main), version: e.state.version, log, services,
         spawn: this.deps.spawn ?? realSpawn,
         argv: this.deps.argv ? this.deps.argv(dir) : hostArgv(dir),
         granted: () => this.store.entry(id)?.state.granted ?? { network: [] },
-        settings: () => this.store.entry(id)?.state.settings ?? {},
+        settings: () => ownSettings(this.store.entry(id)),
         onPush: ({ widgetId, update, key }) => { for (const f of this.pushFns) f(id, widgetId, update, key); },
         tiles: (widgetId) => this.tilesFn?.(id, widgetId) ?? [],
         onRegistered: (r: InitResult) => {
@@ -177,8 +184,9 @@ export class PluginHosts {
         continue;
       }
       if (!e.state.granted?.onair) this.deps.onair?.clear(id);
-      const json = JSON.stringify(e.state.settings);
-      if (json !== s.settingsJson) { s.settingsJson = json; s.proc.notifySettings(e.state.settings); }
+      const own = ownSettings(e);
+      const json = JSON.stringify(own);
+      if (json !== s.settingsJson) { s.settingsJson = json; s.proc.notifySettings(own); }
     }
     this.startEager(); // a plugin just enabled or granted onair starts without waiting for a phone
   }

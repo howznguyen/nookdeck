@@ -11,6 +11,8 @@ let strokeW = DEFAULT_STROKE
 export function setIconStroke(v: number | undefined) {
   strokeW = v && v >= 1 && v <= 3 ? v : DEFAULT_STROKE
 }
+/** the current outline stroke, for the few glyphs drawn here instead of taken from Tabler */
+export const iconStroke = () => strokeW
 
 export function Icon(props: { name: string; size?: number; weight?: 'Outline' | 'Filled'; class?: string }) {
   const size = props.size || 20

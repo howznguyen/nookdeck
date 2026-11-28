@@ -268,3 +268,29 @@ describe.skipIf(WIN)("the adapter process never outlives the agent", () => {
     expect(Bun.spawnSync(["pgrep", "-f", `nookdeck-mediaremote /bin/sh -c echo .* ${dir}`]).stdout.toString().trim()).toBe("");
   });
 });
+
+// ---- two browser tabs with media (recorded from a Chromium browser on 2026-11-28) ----
+
+describe("two tabs: a diff with another tab's clock", () => {
+  const PBN = { title: "PBN 65", artist: "Thuy Nga", duration: 417.201, elapsedTime: 222.57, playbackRate: 0, playing: false, bundleIdentifier: "com.ardia.browser", timestamp: "2026-11-27T19:00:23Z" };
+  test("a duration change without a title is a mix; one with the title, or the same duration, is not", async () => {
+    const { mixedDiff, parseGet } = await import("../src/mediaremote");
+    expect(mixedDiff(PBN, line({ playbackRate: 1, elapsedTime: 0, duration: 1287.281 }, true))).toBe(true);
+    expect(mixedDiff(PBN, line({ title: "Liên Khúc", duration: 1287.281 }, true))).toBe(false);
+    expect(mixedDiff(PBN, line({ elapsedTime: 230, duration: 417.2 }, true))).toBe(false);
+    expect(mixedDiff(PBN, line({ ...PBN, duration: 99 }, false))).toBe(false); // a full state replaces, nothing to mix
+    expect(parseGet('{"title":"x","duration":5}\n')).toEqual({ title: "x", duration: 5 });
+    expect(parseGet("nope")).toBeNull();
+  });
+  test("the tile reads the whole state again instead of pairing one tab's title with the other's time", async () => {
+    const gets: string[][] = [];
+    const truth = { ...PBN, elapsedTime: 317.56, playbackRate: 1, playing: true, timestamp: "2026-11-27T19:01:09Z" };
+    const { s, procs } = make({ get: async (argv) => { gets.push(argv); return JSON.stringify(truth); } });
+    const p = s.read(); await tick(); procs[0]!.emit(line(PBN)); await p;
+    procs[0]!.emit(line({ playbackRate: 1, elapsedTime: 0, duration: 1287.281, timestamp: "2026-11-27T19:00:24Z" }, true));
+    await tick(20);
+    expect(gets).toEqual([["/usr/bin/perl", "/x/a.pl", "/x/MediaRemoteAdapter.framework", "get"]]);
+    expect((await s.read())!).toMatchObject({ title: "PBN 65", duration: 417.201, playing: true });
+    s.stop();
+  });
+});

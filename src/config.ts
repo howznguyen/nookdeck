@@ -145,10 +145,12 @@ export interface MetricOptions {
 
 /**
  * Clock widget looks. digital = big thin digits (default), flip = split-flap cards, analog = dial with hands,
- * minimal = time only, word = the time written out in words ("ten to five", or in Vietnamese "mười giờ kém năm"), world = several time zones.
+ * minimal = time only, word = the time written out in words ("ten to five", or in Vietnamese "mười giờ kém năm"), world = several time zones,
+ * weather = time with the current weather (served by core.weather, see legacyRef), lunar = time with the lunar date and can chi,
+ * bloc = a tear-off wall calendar page (lịch bloc), segment = 7-segment LED digits, ring = time inside a seconds ring, stack = hours over minutes.
  */
-export type ClockStyle = "digital" | "flip" | "analog" | "minimal" | "word" | "world";
-export const CLOCK_STYLES: ClockStyle[] = ["digital", "flip", "analog", "minimal", "word", "world"];
+export type ClockStyle = "digital" | "flip" | "analog" | "minimal" | "word" | "world" | "weather" | "lunar" | "bloc" | "segment" | "ring" | "stack" | "ticks" | "dither";
+export const CLOCK_STYLES: ClockStyle[] = ["digital", "flip", "analog", "minimal", "word", "world", "weather", "lunar", "bloc", "segment", "ring", "stack", "ticks", "dither"];
 
 export interface ClockOptions {
   style?: ClockStyle;      // default "digital"
@@ -158,6 +160,7 @@ export interface ClockOptions {
   timeZone?: string;       // IANA name, default the phone's zone (world: the first zone)
   zones?: string[];        // world style: up to 4 extra IANA zones
   label?: string;          // optional caption, e.g. "Tokyo"
+  weather?: WeatherOptions; // weather style: where and how to fetch (same shape as the weather widget's options)
 }
 
 /** Overrides of the deck's design tokens (Knowns look). Unset fields use the built-in token values. */
@@ -340,7 +343,12 @@ export interface Device {
   lastSeen?: string;
   /** lastSeen (or createdAt) + 365 days; a token unused for a year stops working. Refreshed on every connect. */
   expiresAt?: string;
+  /** set up over USB (Android, adb): the phone's adb serial, so setting the same phone up again replaces this entry */
+  usbSerial?: string;
+  /** what USB setup changed on the phone, put back when the device is forgotten: the "stay awake while charging" value before setup, and whether it took the app off battery optimisation */
+  usbUndo?: UsbUndo;
 }
+export interface UsbUndo { stayOn?: number; battery?: boolean }
 
 export const HOME = process.env.NOOKDECK_HOME ?? join(userHome(), ".nookdeck");
 const LAYOUT_FILE = join(HOME, "layout.json");
@@ -516,6 +524,22 @@ export function migrateScreenshotHotkeys(layout: Layout): Layout {
 
 export async function saveLayout(layout: Layout): Promise<void> {
   await writeJson(LAYOUT_FILE, layout);
+}
+
+/**
+ * This computer's Nookdeck, as a random id kept in <home>/computer-id. Not a secret: /api/hello shows it so the Android app reconnects
+ * to the computer that set it up, and not to another Nookdeck it finds on the same Wi-Fi.
+ */
+let computerIdMemo: string | undefined;
+export async function computerId(): Promise<string> {
+  if (computerIdMemo) return computerIdMemo;
+  const file = join(HOME, "computer-id");
+  const have = (await readFile(file, "utf8").catch(() => "")).trim();
+  if (/^[0-9a-f]{16,64}$/.test(have)) return (computerIdMemo = have);
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+  await mkdir(HOME, { recursive: true });
+  await writeFile(file, id + "\n");
+  return (computerIdMemo = id);
 }
 
 export async function loadDevices(): Promise<Device[]> {
@@ -876,6 +900,8 @@ function clockOptions(c: any, where: string): ClockOptions | undefined {
     });
   }
   if (c.label !== undefined && c.label !== "") out.label = str(c.label, `${where}.label`).slice(0, 40);
+  const wx = weatherOptions(c.weather, `${where}.weather`);
+  if (wx) out.weather = wx;
   return Object.keys(out).length ? out : undefined;
 }
 

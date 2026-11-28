@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
-import { loadDevices, saveDevices, type Device } from "./config";
+import { loadDevices, saveDevices, type Device, type UsbUndo } from "./config";
 
 export const MAX_FAILURES = 10;
 /** A device token unused for this long stops working (the window slides on every connect). */
@@ -73,6 +73,18 @@ export class Pairing {
       return null;
     }
     this.failures = 0;
+    return this.addDevice(name);
+  }
+
+  /**
+   * A device without the PIN, for a phone set up over USB: the cable and the phone's "Allow USB debugging" prompt stand in for it.
+   * Only the localhost-only Android setup route calls this. The same adb serial set up again replaces its earlier entry.
+   */
+  async pairTrusted(name: unknown, usbSerial: string, undo?: UsbUndo): Promise<{ token: string; deviceId: string }> {
+    return this.addDevice(name, usbSerial, undo);
+  }
+
+  private async addDevice(name: unknown, usbSerial?: string, undo?: UsbUndo): Promise<{ token: string; deviceId: string }> {
     const token = newToken();
     const device: Device = {
       id: randomBytes(8).toString("hex"),
@@ -80,9 +92,16 @@ export class Pairing {
       tokenHash: hashToken(token),
       createdAt: new Date().toISOString(),
       expiresAt: expiryFrom(Date.now()),
+      ...(usbSerial ? { usbSerial } : {}),
     };
     await withDevicesLock(async () => {
-      const devices = await loadDevices();
+      const all = await loadDevices();
+      // setting the same phone up again keeps the value from before the first setup, not the one the first setup left behind
+      const prev = usbSerial ? all.find((d) => d.usbSerial === usbSerial)?.usbUndo : undefined;
+      const stayOn = prev?.stayOn ?? undo?.stayOn;
+      const battery = !!(prev?.battery || undo?.battery);
+      if (stayOn !== undefined || battery) device.usbUndo = { ...(stayOn !== undefined ? { stayOn } : {}), ...(battery ? { battery } : {}) };
+      const devices = all.filter((d) => !usbSerial || d.usbSerial !== usbSerial);
       devices.push(device);
       await saveDevices(devices);
     });

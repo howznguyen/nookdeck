@@ -1,17 +1,19 @@
 import { QuotaWidget, SessionsWidget } from './ai'
 import { t } from './i18n'
 import { getPlatform } from './platform'
-import { formatTemp } from './temp'
+import { formatTemp, tempUnit } from './temp'
 import type { AiWidgetProps } from './ai'
 import { Rings, SlotSpark } from './charts'
-import { BarSpark, Donut, MeterBar, windowSeries } from './metric-charts'
+import { Donut, MeterBar, windowSeries } from './metric-charts'
 import { NowPlayingTile } from './now-playing'
 import { ClockWidget } from './clocks'
 import { PluginTile } from './plugin'
-import type { PluginSlot } from './plugin-logic'
+import { clockWeatherOf, sampleWeatherSlot, type PluginSlot } from './plugin-logic'
 import { EntityTile } from './entity'
 import { CameraTile } from './camera'
-import { NotificationsTile, ValueTile, WeatherTile } from './automation'
+import { NotificationsTile, ValueTile } from './automation'
+import { WeatherTile } from './weather-tile'
+import { StatTile } from './stats-tile'
 import { AnimatedNumber, BAND_COLOR, DeltaPill, Gauge, type Band } from './knowns'
 import { tint, chartColor } from './theme'
 import type { AiData, ClockOptions, MetricOptions, QuotaOptions, EntityOptions, WeatherOptions, PushOptions, WeatherData, PushedValue, Notice, HassEntity, IconAssets, Media, MediaCommand, Stats, WidgetKind } from './types'
@@ -36,13 +38,14 @@ const GB = 1024 * 1024 * 1024
 export function naturalColor(kind: string): string | undefined {
   return chartColor(['cpu', 'gpu', 'memory', 'network', 'load', 'uptime'].indexOf(kind), DEFAULT_COLOR[kind])
 }
+/** One calm accent per metric (mid tones that read on the dark and the light tile); state colours stay for state. */
 export const DEFAULT_COLOR: { [k: string]: string } = {
-  cpu: '#2dd4bf',
-  gpu: '#a78bfa',
-  memory: '#f472b6',
-  network: '#f59e0b',
-  load: '#34d399',
-  uptime: '#60a5fa',
+  cpu: '#4fb3a6',
+  gpu: '#8f86d9',
+  memory: '#c98bb0',
+  network: '#c9a25e',
+  load: '#6fae8c',
+  uptime: '#7c9fd0',
   clock: '#8b8b94',
 }
 const LABEL: { [k: string]: string } = {
@@ -66,7 +69,6 @@ export function fmtRate(bps: number): [string, string] {
   if (v >= 1024) return [Math.round(v / 1024) + '', 'KB/s']
   return [Math.round(v) + '', 'B/s']
 }
-const fmtRateStr = (bps: number) => fmtRate(bps).join(' ')
 
 function fmtUptime(s: number, compact: boolean) {
   s = Math.max(0, Math.floor(s))
@@ -123,7 +125,7 @@ export interface WidgetProps {
 }
 
 export function Widget(props: WidgetProps) {
-  if (props.kind === 'clock') return <ClockWidget tw={props.tw} th={props.th} scale={props.scale} showLabel={props.showLabel} textColor={props.textColor} color={props.color} opts={props.clock} caption={t(LABEL.clock)} />
+  if (props.kind === 'clock') return <ClockWidget tw={props.tw} th={props.th} scale={props.scale} showLabel={props.showLabel} textColor={props.textColor} color={props.color} opts={props.clock} wx={props.clock && props.clock.style === 'weather' ? clockWeatherOf(props.preview ? sampleWeatherSlot() : props.plug, props.clock.weather && props.clock.weather.units ? (props.clock.weather.units === 'imperial' ? 'F' : 'C') : tempUnit()) : null} assets={props.assets} preview={props.preview} />
   if (props.kind === 'entity' && props.entity && props.entity.id.indexOf('camera.') === 0) return <CameraTile id={props.entity.id} cfg={props.entity} ent={props.hassEnt} connected={props.hassConnected !== false} showLabel={props.showLabel} preview={props.preview} />
   if (props.kind === 'entity' && props.entity) return <EntityTile id={props.entity.id} cfg={props.entity} ent={props.hassEnt} forceOn={props.hassForceOn} pend={props.entPend} onStep={props.onStep} onLight={props.onLight} connected={props.hassConnected !== false} tw={props.tw} th={props.th} scale={props.scale} showLabel={props.showLabel} color={props.color} textColor={props.textColor} assets={props.assets} />
   // the legacy weather and quota tiles are core plugins: when the plugin is off or missing, say so instead of showing stale data
@@ -173,13 +175,11 @@ function Metric(props: WidgetProps) {
   const kind = props.kind
   const color = props.color || naturalColor(kind) || '#8b8b94'
   const compact = props.tw < 120
-  const roomy = props.tw >= 170 && props.th >= 100
   let num = 0
   let fmt: (n: number) => string = (n) => String(Math.round(n))
   let unit = ''
   let sub = ''
   let data: number[] | null = null
-  let max: number | undefined
   let delta: { v: number; unit: string; dec: number; tone?: 'warn' | 'bad' } | null = null
   if (s) {
     if (kind === 'gpu') {
@@ -188,7 +188,6 @@ function Metric(props: WidgetProps) {
         unit = '%'
         sub = gpuSub(s.gpu)
         data = props.hist.gpu || []
-        max = 100
         const d = deltaOf(data)
         if (d !== null) delta = { v: d, unit: '%', dec: 0, tone: d >= 20 ? 'bad' : undefined }
       }
@@ -196,7 +195,6 @@ function Metric(props: WidgetProps) {
       num = Math.round(s.cpu)
       unit = '%'
       data = props.hist.cpu
-      max = 100
       const d = deltaOf(props.hist.cpu)
       if (d !== null) delta = { v: d, unit: '%', dec: 0, tone: d >= 20 ? 'bad' : undefined }
     } else if (kind === 'memory') {
@@ -205,7 +203,6 @@ function Metric(props: WidgetProps) {
       unit = 'GB'
       sub = '/ ' + Math.round(s.memTotal / GB) + ' GB'
       data = props.hist.mem
-      max = 100
       const d = deltaOf(props.hist.mem)
       if (d !== null) {
         const g = (d / 100) * (s.memTotal / GB)
@@ -243,12 +240,33 @@ function Metric(props: WidgetProps) {
   const noGpu = kind === 'gpu' && !(s && s.gpu)
   const pctKind = kind === 'cpu' || kind === 'memory' || kind === 'gpu'
   const pct = !s ? 0 : kind === 'gpu' ? (s.gpu ? s.gpu.util : 0) : kind === 'cpu' ? s.cpu : kind === 'memory' && s.memTotal ? (s.memUsed / s.memTotal) * 100 : 0
-  const base = (kind === 'cpu' || kind === 'gpu') && props.tw >= 140 && props.th >= 140 ? 'gauge' : 'sparkline'
+  // the default look and the history charts are the stat tiles (stats-tile.tsx); gauge / ring / donut / bar stay below
+  const base = 'auto'
   let chart: string = mo.chart || base
   if (!pctKind && (chart === 'gauge' || chart === 'ring' || chart === 'bar' || chart === 'donut')) chart = base
   if ((kind === 'cpu' || kind === 'gpu') && chart === 'donut') chart = 'ring'
   if (noGpu) chart = 'number'
   if (kind === 'uptime') chart = 'number'
+  if (chart === 'auto' || chart === 'sparkline' || chart === 'area' || chart === 'bars' || chart === 'number' || !s) {
+    return (
+      <StatTile
+        kind={kind}
+        s={s}
+        hist={props.hist}
+        tw={props.tw}
+        th={props.th}
+        showLabel={props.showLabel}
+        label={label}
+        color={color}
+        textColor={props.textColor}
+        chart={chart === 'auto' ? undefined : (chart as MetricOptions['chart'])}
+        windowSec={mo.window || 120}
+        showDelta={mo.showDelta !== false}
+        showSub={mo.showSub !== false}
+        preview={props.preview}
+      />
+    )
+  }
   const showDeltaOpt = mo.showDelta !== false
   const showSubOpt = mo.showSub !== false
   const winSec = mo.window || 120
@@ -365,62 +383,6 @@ function Metric(props: WidgetProps) {
     )
   }
 
-  const isNet = kind === 'network'
-  const noChart = chart === 'number' || !data
-  const dash = noGpu
-  if (dash) sub = t('No GPU data')
-  // tall tiles (2x3...): the chart takes the height the text does not need, and the number grows with it
-  const tallM = props.th >= props.tw * 1.25 && props.th >= 200
-  const sparkH = noChart ? 0 : tallM ? Math.round(props.th * 0.5) : !compact ? Math.max(16, Math.min(isNet ? 70 : 60, Math.round(props.th * (isNet ? 0.34 : 0.22)))) : Math.max(12, Math.round(props.th * 0.2))
-  const textRoom = props.th - sparkH - pad
-  const maxV = (roomy ? 38 : 26) * props.scale * (chart === 'number' ? 1.6 : 1) * (tallM ? 1.3 : 1)
-  const vSize = Math.max(9, Math.min(fit(fmt(num).length + 1 + (unit ? 2 : 0), avail, maxV, 9), Math.floor(textRoom * (props.showLabel ? 0.5 : 0.7)) * (chart === 'number' ? 1.2 : 1)))
-  const lSize = Math.max(8, Math.min(11, fit(label.length, avail, 11, 8)))
-  const showSub = showSubOpt && (!!sub || isNet) && !compact && textRoom >= vSize + lSize + 30
-  const showDelta = showDeltaOpt && !!delta && !compact && props.tw >= 150 && textRoom >= vSize + lSize + 6
-  const tc = props.textColor || undefined
-  const subSize = Math.max(9, Math.min(12, fit(isNet ? 18 : sub.length, avail, 12, 9)))
-  const slots = Math.max(12, Math.min(60, Math.floor(props.tw / 5)))
-  const ser = !noChart && data ? windowSeries(data, winSec, chart === 'bars' ? slots : 60) : []
-  const txSer = isNet && !noChart ? windowSeries(props.hist.tx, winSec, chart === 'bars' ? slots : 60) : []
-  const netMax = Math.max(1, Math.max.apply(null, ser.concat(txSer)) * 1.15)
-  let chartEl = null
-  if (!noChart && data) {
-    if (chart === 'bars') {
-      const dom: [number, number] = max ? [0, max] : [0, isNet ? netMax : Math.max(0.1, Math.max.apply(null, ser) * 1.15)]
-      chartEl = <BarSpark values={ser} color={color} height={sparkH} slots={slots} domain={dom} inset={pad} />
-    } else if (isNet) {
-      chartEl = <SlotSpark values={ser} color={color} height={sparkH} fill={chart === 'area' ? 0.4 : undefined} domain={[0, netMax]} extra={{ values: txSer, color: tint(color, 0.5) || color }} />
-    } else {
-      chartEl = <SlotSpark values={ser} color={color} height={sparkH} fill={chart === 'area' ? 0.4 : undefined} minRange={max ? 20 : 0} />
-    }
-  }
-  return (
-    <div class={'pd-metric' + (tallM && noChart ? ' pd-metric--mid' : '')} style={{ padding: pad + 'px', paddingBottom: pad + 'px' }} title={kind === 'gpu' && s && s.gpu && s.gpu.name ? s.gpu.name : undefined}>
-      {props.showLabel ? (
-        <div class="pd-ml" data-part="tile-label" style={{ fontSize: lSize + 'px', color: props.textColor || color }}>
-          {label}
-        </div>
-      ) : null}
-      <div class="pd-mrow">
-        <div class="pd-mv" data-part="tile-value" style={{ fontSize: vSize + 'px', color: tc }}>
-          {dash ? '-' : <AnimatedNumber value={num} format={fmt} />}
-          {unit && !dash ? <span class="pd-mu" style={{ fontSize: Math.max(9, Math.round(vSize * 0.42)) + 'px' }}>{' ' + unit}</span> : null}
-        </div>
-        {showDelta && delta ? <DeltaPill value={delta.v} unit={delta.unit} decimals={delta.dec} tone={delta.tone} size={11} /> : null}
-      </div>
-      {showSub && !isNet ? (
-        <div class="pd-msub" data-part="tile-sub" style={{ fontSize: subSize + 'px' }}>
-          {sub}
-        </div>
-      ) : null}
-      {showSub && isNet ? (
-        <div class="pd-msub" data-part="tile-sub" style={{ fontSize: subSize + 'px' }}>
-          <i class="pd-ldot" style={{ background: tint(color, 0.5) || color }} />
-          {'↑ ' + fmtRateStr(s && s.net ? s.net.tx : 0)}
-        </div>
-      ) : null}
-      {chartEl}
-    </div>
-  )
+  // every other chart choice was drawn above (the stat tile takes the default and the history charts)
+  return null
 }

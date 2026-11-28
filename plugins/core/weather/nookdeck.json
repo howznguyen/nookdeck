@@ -7,6 +7,7 @@
   "permissions": {
     "network": [
       "api.open-meteo.com",
+      "air-quality-api.open-meteo.com",
       "geocoding-api.open-meteo.com"
     ]
   },
@@ -83,7 +84,9 @@
           "icon": "cloud-sun",
           "humidity": 62,
           "wind": 11,
-          "isDay": true
+          "isDay": true,
+          "windDir": 135,
+          "aqi": 42
         },
         "hourly": [
           {
@@ -136,7 +139,10 @@
             "max": 33,
             "condition": "Partly cloudy",
             "code": 2,
-            "icon": "cloud-sun"
+            "icon": "cloud-sun",
+            "rain": 0.2,
+            "pop": 10,
+            "uv": 8.4
           },
           {
             "inDays": 1,
@@ -144,7 +150,10 @@
             "max": 31,
             "condition": "Light rain",
             "code": 61,
-            "icon": "rain"
+            "icon": "rain",
+            "rain": 6.8,
+            "pop": 80,
+            "uv": 3.1
           },
           {
             "inDays": 2,
@@ -152,7 +161,54 @@
             "max": 32,
             "condition": "Mostly clear",
             "code": 1,
-            "icon": "sun"
+            "icon": "sun",
+            "rain": 0,
+            "pop": 5,
+            "uv": 9.2
+          },
+          {
+            "inDays": 3,
+            "min": 24,
+            "max": 30,
+            "condition": "Thunderstorm",
+            "code": 95,
+            "icon": "storm",
+            "rain": 14.2,
+            "pop": 90,
+            "uv": 3.0
+          },
+          {
+            "inDays": 4,
+            "min": 23,
+            "max": 30,
+            "condition": "Light rain",
+            "code": 61,
+            "icon": "rain",
+            "rain": 3.6,
+            "pop": 65,
+            "uv": 4.1
+          },
+          {
+            "inDays": 5,
+            "min": 24,
+            "max": 31,
+            "condition": "Partly cloudy",
+            "code": 2,
+            "icon": "cloud-sun",
+            "rain": 0,
+            "pop": 15,
+            "uv": 8.7
+          },
+          {
+            "inDays": 6,
+            "min": 25,
+            "max": 33,
+            "condition": "Mostly clear",
+            "code": 1,
+            "icon": "sun",
+            "rain": 0,
+            "pop": 5,
+            "uv": 9.5
           }
         ],
         "source": "open-meteo",

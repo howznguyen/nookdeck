@@ -1,5 +1,5 @@
 import type { Server, ServerWebSocket } from "bun";
-import { HOME, PLUGIN_ID_RE, loadDevices, loadLayout, saveDevices, saveLayout, validateLayout, type Action, type Layout } from "./config";
+import { HOME, PLUGIN_ID_RE, computerId, loadDevices, loadLayout, saveDevices, saveLayout, validateLayout, type Action, type Device, type Layout } from "./config";
 import { resolveAsset } from "./assets";
 
 /** Embedded text assets served gzipped when the client accepts it; compressed once and kept (they never change). */
@@ -66,6 +66,8 @@ import { userHome } from "./home";
 import { screenshotToolsFor } from "../web/shared/screenshot";
 import pkg from "../package.json" with { type: "json" };
 import { aboutInfo, compatVersion } from "./about";
+import { AndroidUsb, releaseApk } from "./android/usb";
+import { osId } from "./android/adb";
 import { PluginStore, PluginError } from "./plugins/store";
 import { PluginRuntime, realShell } from "./plugins/runtime";
 import { PluginHosts, type HostsDeps } from "./plugins/hosts";
@@ -507,6 +509,43 @@ export async function startServer(opts: StartOptions = {}) {
     };
   };
 
+  // one-cable setup for Android phones (adb): created on first use, once the port is known
+  let usbSetup: AndroidUsb | undefined;
+  /**
+   * Forget the paired devices that match: their tokens stop working, their open decks are told so, and a phone set up over USB gets
+   * back what setup changed on it (when it is still plugged in). False when nothing matched.
+   */
+  const forgetDevice = async (match: (d: Device) => boolean): Promise<boolean> => {
+    const gone = await withDevicesLock(async () => {
+      const devices = await loadDevices();
+      const out = devices.filter(match);
+      if (out.length) await saveDevices(devices.filter((d) => !match(d)));
+      return out;
+    });
+    for (const d of gone) {
+      if (d.usbSerial) void androidUsb().release(d.usbSerial, d.usbUndo).catch(() => {});
+      for (const ws of [...sockets]) {
+        if (ws.data.deviceId !== d.id) continue;
+        send(ws, { type: "pair-revoked" });
+        ws.close(4403, "revoked");
+      }
+    }
+    return gone.length > 0;
+  };
+  const androidUsb = (): AndroidUsb => (usbSetup ??= new AndroidUsb({
+    home: HOME,
+    os: osId(platform.id),
+    port: server.port as number,
+    agentVersion: aboutInfo().version,
+    pairTrusted: (name, serial, undo) => pairing.pairTrusted(name, serial, undo),
+    usbSerials: async () => (await loadDevices()).flatMap((d) => (d.usbSerial ? [d.usbSerial] : [])),
+    lanUrls: async () => (await pairingInfo()).addresses.filter((a) => a.kind === "lan").map((a) => `http://${a.host}:${server.port}`).slice(0, 4),
+    computerName: () => (opts.hostName ?? localHostName)(),
+    computerId,
+    apk: () => releaseApk(HOME, aboutInfo().version, process.env),
+    log: (line) => console.log(line),
+  }));
+
   let lastStats: Stats | undefined;
   const stopStats = deps.startStats((stats) => {
     lastStats = stats;
@@ -933,6 +972,38 @@ export async function startServer(opts: StartOptions = {}) {
         return json({ error: "method not allowed" }, 405);
       }
 
+      if (path === "/api/android" && req.method === "GET") {
+        const denied = guardLocal(server, req);
+        if (denied) return denied;
+        return json(url.searchParams.get("peek") === "1" ? androidUsb().peek() : await androidUsb().status());
+      }
+      if (path === "/api/android/adb" && req.method === "POST") {
+        const denied = guardLocal(server, req);
+        if (denied) return denied;
+        try { return json({ ok: true, adb: await androidUsb().installAdb() }); } catch (e: any) { return json({ ok: false, error: String(e?.message ?? e) }, 502); }
+      }
+      if (path === "/api/android/setup" && req.method === "POST") {
+        const denied = guardLocal(server, req);
+        if (denied) return denied;
+        const body = await readBody(req);
+        const r = await androidUsb().setup(String(body?.serial ?? ""), { stayAwake: body?.stayAwake === true, battery: body?.battery === true });
+        return json(r, r.ok ? 200 : 400);
+      }
+      if (path === "/api/android/forget" && req.method === "POST") {
+        // the tray's pairing window: remove a phone set up over USB, by its adb serial
+        const denied = guardLocal(server, req);
+        if (denied) return denied;
+        const body = await readBody(req);
+        const serial = String(body?.serial ?? "");
+        if (!serial || !(await forgetDevice((d) => d.usbSerial === serial))) return json({ ok: false, error: "not found" }, 404);
+        return json({ ok: true });
+      }
+      if (path === "/api/hello" && req.method === "GET") {
+        // the Android app looks for computers on the Wi-Fi: is this Nookdeck, and what is it called (no PIN, no secret)
+        const bad = await guardPhone(server, req);
+        if (bad) return bad;
+        return json({ app: "nookdeck", name: await (opts.hostName ?? localHostName)().catch(() => ""), version: aboutInfo().version, id: await computerId() });
+      }
       if (path === "/api/devices" && req.method === "GET") {
         const denied = guardLocal(server, req);
         if (denied) return denied;
@@ -971,18 +1042,7 @@ export async function startServer(opts: StartOptions = {}) {
         const denied = guardLocal(server, req);
         if (denied) return denied;
         const id = decodeURIComponent(m[1]);
-        const found = await withDevicesLock(async () => {
-          const devices = await loadDevices();
-          if (!devices.some((d) => d.id === id)) return false;
-          await saveDevices(devices.filter((d) => d.id !== id));
-          return true;
-        });
-        if (!found) return json({ error: "not found" }, 404);
-        for (const ws of [...sockets]) {
-          if (ws.data.deviceId !== id) continue;
-          send(ws, { type: "pair-revoked" });
-          ws.close(4403, "revoked");
-        }
+        if (!(await forgetDevice((d) => d.id === id))) return json({ error: "not found" }, 404);
         return json({ ok: true });
       }
 
@@ -1843,6 +1903,8 @@ export async function startServer(opts: StartOptions = {}) {
       },
     },
   });
+  // phones set up over USB before: link them through the cable again when they are plugged in
+  void androidUsb().start().catch((e) => console.error("android", e));
 
   return {
     server,
@@ -1872,6 +1934,7 @@ export async function startServer(opts: StartOptions = {}) {
       broker.clear();
       questions.clear();
       stopStats();
+      usbSetup?.stop();
       for (const ws of sockets) ws.close();
       server.stop(true);
     },

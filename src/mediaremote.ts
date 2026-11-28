@@ -63,6 +63,29 @@ export function applyStreamLine(state: NowPlayingState, line: string): StreamEve
   return { kind: "state", state: next };
 }
 
+/**
+ * A diff that moves the clock of another item while keeping this item's title: a browser with media in two tabs (seen with a
+ * Chromium browser) sends the other tab's duration and position without its title, so merging would pair one tab's title with the
+ * other's time. True when the diff changes the duration and carries no title or artist: read the whole state again instead.
+ */
+export function mixedDiff(state: NowPlayingState, line: string): boolean {
+  let msg: any;
+  try { msg = JSON.parse(line.trim()); } catch { return false; }
+  if (msg?.type !== "data" || !msg.diff || typeof msg.payload !== "object" || msg.payload === null) return false;
+  const p = msg.payload as Record<string, unknown>;
+  if ("title" in p || "artist" in p) return false;
+  if (typeof p.duration !== "number" || typeof state.duration !== "number") return false;
+  return Math.abs(p.duration - state.duration) > 1;
+}
+
+/** The output of the adapter's `get`: the whole now playing state as one JSON object, or null when it is not that. */
+export function parseGet(text: string): NowPlayingState | null {
+  try {
+    const j = JSON.parse(text.trim());
+    return j && typeof j === "object" && !Array.isArray(j) ? (j as NowPlayingState) : null;
+  } catch { return null; }
+}
+
 /** Splits a byte stream into lines (a chunk may end mid-line). */
 export class LineSplitter {
   private rest = "";

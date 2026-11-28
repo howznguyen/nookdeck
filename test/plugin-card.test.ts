@@ -255,7 +255,13 @@ describe("card classes", () => {
       const selectors = rule.split("{")[0]!.trim();
       if (selectors) for (const one of selectors.split(",")) expect(one.trim()).toStartWith(".pd-pcard");
     }
-    for (const f of new Bun.Glob("*.{ts,tsx}").scanSync(src)) if (f !== "card.tsx" && f !== "card-calendar.tsx") expect(await Bun.file(join(src, f)).text()).not.toContain("pd-pcard");
+    // the ticker part keeps its rules in its own file, under the same prefix
+    for (const rule of (await Bun.file(join(src, "card-ticker.css")).text()).replace(/\/\*[\s\S]*?\*\//g, "").split("}")) {
+      const selectors = rule.split("{")[0]!.trim();
+      if (selectors) for (const one of selectors.split(",")) expect(one.trim()).toStartWith(".pd-pcard");
+    }
+    const own_files = ["card.tsx", "card-calendar.tsx", "card-ticker.tsx"];
+    for (const f of new Bun.Glob("*.{ts,tsx}").scanSync(src)) if (!own_files.includes(f)) expect(await Bun.file(join(src, f)).text()).not.toContain("pd-pcard");
   });
 });
 

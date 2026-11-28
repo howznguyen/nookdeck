@@ -39,8 +39,8 @@ export const AI_PROVIDERS: AiProvider[] = ["claude", "codex", "antigravity", "op
 /** Providers whose quota can be read (Grok has no usage API). */
 export const QUOTA_PROVIDERS: AiProvider[] = ["claude", "codex", "antigravity", "opencode"];
 
-export type ClockStyle = "digital" | "flip" | "analog" | "minimal" | "word" | "world";
-export const CLOCK_STYLES: ClockStyle[] = ["digital", "flip", "analog", "minimal", "word", "world"];
+export type ClockStyle = "digital" | "flip" | "analog" | "minimal" | "word" | "world" | "weather" | "lunar" | "bloc" | "segment" | "ring" | "stack" | "ticks" | "dither";
+export const CLOCK_STYLES: ClockStyle[] = ["digital", "flip", "analog", "minimal", "word", "world", "weather", "lunar", "bloc", "segment", "ring", "stack", "ticks", "dither"];
 export interface ClockOptions {
   style?: ClockStyle;
   seconds?: boolean;
@@ -49,6 +49,8 @@ export interface ClockOptions {
   timeZone?: string;
   zones?: string[];
   label?: string;
+  /** weather style: where to read the weather (same shape as the weather widget's options) */
+  weather?: WeatherOptions;
 }
 
 export type QuotaChart = "auto" | "bars" | "rings" | "gauge" | "meter" | "number" | "history";

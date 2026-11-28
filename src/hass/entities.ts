@@ -56,6 +56,7 @@ export function wantedEntities(layout: Layout): string[] {
   for (const p of layout.pages) for (const it of p.items) {
     if (it.kind === "widget" && it.widget === "entity" && it.entity?.id) out.add(it.entity.id);
     if (it.kind === "widget" && it.widget === "weather" && it.weather?.entity) out.add(it.weather.entity);
+    if (it.kind === "widget" && it.widget === "clock" && it.clock?.style === "weather" && it.clock.weather?.entity) out.add(it.clock.weather.entity);
     if (it.kind === "button" && it.action) {
       if (it.action.type === "hass" && it.action.entityId) out.add(it.action.entityId);
       if (it.action.type === "macro") for (const st of it.action.steps) if (st.kind === "hass" && st.entityId) out.add(st.entityId);
