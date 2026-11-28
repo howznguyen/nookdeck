@@ -17,6 +17,20 @@ export function parseMeminfo(text: string): number | undefined {
   return (total - avail) * 1024;
 }
 
+/** /proc/meminfo -> file cache (Cached + Buffers + SReclaimable) and swap, in bytes; undefined when none is there. */
+export function parseMeminfoDetail(text: string): { cached?: number; swapUsed?: number; swapTotal?: number } | undefined {
+  const kb = (key: string) => {
+    const m = new RegExp(`^${key}:\\s+(\\d+)\\s*kB`, "m").exec(text);
+    return m ? Number(m[1]) : undefined;
+  };
+  const out: { cached?: number; swapUsed?: number; swapTotal?: number } = {};
+  const cached = kb("Cached");
+  if (cached !== undefined) out.cached = (cached + (kb("Buffers") ?? 0) + (kb("SReclaimable") ?? 0)) * 1024;
+  const st = kb("SwapTotal"), sf = kb("SwapFree");
+  if (st !== undefined && st > 0) { out.swapTotal = st * 1024; out.swapUsed = Math.max(0, st - (sf ?? st)) * 1024; }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export const NVIDIA_SMI_ARGS = ["--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,name", "--format=csv,noheader,nounits"];
 
 /** The first GPU of `nvidia-smi --query-gpu=... --format=csv,noheader,nounits` (memory in MiB). */

@@ -38,8 +38,26 @@ export function parseProcessesRequest(msg: any): { sort: ProcessSort; limit: num
   return { sort, limit };
 }
 
-/** Top processes. With an injected runner it reads `ps` (tests, Unix); otherwise the platform does (Windows: its helper). */
+/**
+ * Several deck tiles (and phones) poll the top list every 5 s; one OS read serves them all for PROCESS_CACHE_MS.
+ * Keyed by sort; a cached list is reused when it was read with at least the asked limit.
+ */
+export const PROCESS_CACHE_MS = 4000;
+export function processCache(read: (sort: ProcessSort, limit: number) => Promise<ProcessInfo[]>, ms = PROCESS_CACHE_MS, now: () => number = Date.now) {
+  const memo: { [k: string]: { at: number; limit: number; list: Promise<ProcessInfo[]> } } = {};
+  return (sort: ProcessSort, limit: number): Promise<ProcessInfo[]> => {
+    const hit = memo[sort];
+    if (hit && now() - hit.at < ms && hit.limit >= limit) return hit.list.then((l) => l.slice(0, limit));
+    const list = read(sort, limit);
+    memo[sort] = { at: now(), limit, list };
+    list.catch(() => { if (memo[sort] && memo[sort]!.list === list) delete memo[sort]; });
+    return list;
+  };
+}
+const cachedTop = processCache((sort, limit) => platform.topProcesses(sort, limit));
+
+/** Top processes. With an injected runner it reads `ps` (tests, Unix); otherwise the platform does (Windows: its helper), cached briefly. */
 export async function topProcesses(sort: ProcessSort, limit: number, run?: (argv: string[]) => Promise<string>): Promise<ProcessInfo[]> {
   if (run) return topProcessesFrom(parsePs(await run(["ps", "-Ao", "pid,pcpu,rss,comm"])), sort, limit);
-  return platform.topProcesses(sort, limit);
+  return cachedTop(sort, limit);
 }

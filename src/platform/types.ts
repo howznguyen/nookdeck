@@ -1,7 +1,7 @@
 import type { Action } from "../config";
 import type { VolumeChange, VolumeState } from "../actions";
 import type { RawMedia, MediaApp } from "../media";
-import type { GpuStats, NetCounters } from "../stats";
+import type { GpuStats, MemDetail, NetCounters } from "../stats";
 import type { ProcessInfo, ProcessSort } from "../processes";
 import type { AppInfo } from "../icons";
 
@@ -27,6 +27,8 @@ export interface Platform {
   netCounters(): Promise<NetCounters | undefined>;
   /** Bytes in use when the OS has a better figure than total - free; undefined otherwise. */
   memUsed(): Promise<number | undefined>;
+  /** File cache and swap when the OS tells cheaply (read at most every 10 s); absent or undefined = unknown. */
+  memDetail?(): Promise<MemDetail | undefined>;
   /** GPU utilisation (and memory / temperature when known); undefined when the OS cannot tell. */
   gpu(): Promise<GpuStats | undefined>;
   topProcesses(sort: ProcessSort, limit: number): Promise<ProcessInfo[]>;

@@ -1,0 +1,341 @@
+/* System stat tiles (stats-tile.tsx). Safari 12: no flex gap, no clamp(), -webkit- prefixes. Sizes come from stats-logic.ts. */
+.pd-sys {
+  --pd-sys-track: rgba(128, 128, 136, 0.2);
+  position: relative;
+  -webkit-flex: 1;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  text-align: left;
+  overflow: hidden;
+}
+.pd-sys__label {
+  -webkit-flex: none;
+  flex: none;
+  height: 13px;
+  line-height: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pd-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pd-sys__value {
+  -webkit-flex: none;
+  flex: none;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--pd-text);
+}
+.pd-sys__unit {
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--pd-muted);
+}
+.pd-sys__sub {
+  -webkit-flex: none;
+  flex: none;
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  height: 15px;
+  line-height: 15px;
+  margin-top: 6px;
+  color: var(--pd-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 0;
+}
+.pd-sys__subt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pd-sys__sub .pd-delta {
+  margin-left: 6px;
+  -webkit-flex: none;
+  flex: none;
+}
+.pd-sys__dot {
+  display: inline-block;
+  -webkit-flex: none;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  margin-right: 6px;
+}
+.pd-sys__grow {
+  -webkit-flex: 1;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.pd-sys__fill {
+  -webkit-flex: 1;
+  flex: 1;
+  min-height: 0;
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+}
+.pd-sys__fill--col {
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  align-items: flex-start;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+.pd-sys__fill--row .pd-sys__sub {
+  margin: 0 0 0 12px;
+}
+
+/* 1x1 */
+.pd-sys--mini .pd-sys__fill {
+  -webkit-justify-content: flex-start;
+  justify-content: flex-start;
+}
+.pd-sys__meter {
+  position: relative;
+  -webkit-flex: none;
+  flex: none;
+  margin-top: 6px;
+  background: var(--pd-sys-track);
+  overflow: hidden;
+}
+.pd-sys__meter i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+}
+
+/* one row high */
+.pd-sys__head {
+  -webkit-flex: none;
+  flex: none;
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.pd-sys--strip .pd-sys__head .pd-sys__sub {
+  margin: 0 0 0 10px;
+}
+.pd-sys--strip .pd-sys__head .pd-sys__label {
+  -webkit-flex: none;
+  flex: none;
+  max-width: 50%;
+}
+
+/* header with a side panel */
+.pd-sys__top {
+  -webkit-flex: none;
+  flex: none;
+  display: -webkit-flex;
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+.pd-sys__headcol {
+  -webkit-flex: 1;
+  flex: 1;
+  min-width: 0;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+}
+.pd-sys__headcol .pd-sys__value {
+  margin-top: 4px;
+}
+.pd-sys__side {
+  -webkit-flex: none;
+  flex: none;
+  margin-left: 12px;
+  height: 100%;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-justify-content: flex-end;
+  justify-content: flex-end;
+}
+.pd-sys__cores {
+  display: -webkit-flex;
+  display: flex;
+  align-items: flex-end;
+  -webkit-justify-content: flex-end;
+  justify-content: flex-end;
+}
+.pd-sys__core {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--pd-sys-track);
+  overflow: hidden;
+}
+.pd-sys__core i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  -webkit-transform-origin: 50% 100%;
+  transform-origin: 50% 100%;
+  -webkit-transition: -webkit-transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pd-sys__legend {
+  line-height: 15px;
+  color: var(--pd-muted);
+  font-weight: 500;
+}
+.pd-sys__lrow {
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.pd-sys__lk {
+  -webkit-flex: 1;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pd-sys__lv {
+  margin-left: 8px;
+  color: var(--pd-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* memory parts bar and its one-row legend */
+.pd-sys__lrowh {
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  height: 15px;
+  line-height: 15px;
+  margin-top: 4px;
+  color: var(--pd-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pd-sys__litem {
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  -webkit-flex: none;
+  flex: none;
+}
+.pd-sys__litem .pd-sys__lv {
+  margin-left: 4px;
+}
+.pd-sys__parts {
+  display: -webkit-flex;
+  display: flex;
+  overflow: hidden;
+  background: var(--pd-sys-track);
+}
+.pd-sys__parts i {
+  display: block;
+  height: 100%;
+}
+
+/* chart */
+.pd-sys__chart {
+  position: relative;
+  -webkit-flex: none;
+  flex: none;
+  margin-top: 6px;
+}
+.pd-sys__chart svg {
+  display: block;
+  overflow: visible;
+}
+.pd-sys__grid {
+  stroke: var(--pd-muted);
+  stroke-opacity: 0.12;
+  stroke-width: 1;
+}
+.pd-sys__base {
+  stroke: var(--pd-muted);
+  stroke-opacity: 0.22;
+  stroke-width: 1;
+}
+.pd-sys__mm {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  font-size: 10px;
+  line-height: 12px;
+  color: var(--pd-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.pd-sys__mm span {
+  position: absolute;
+  right: 0;
+  height: 12px;
+}
+
+/* top processes */
+.pd-sys__procs {
+  -webkit-flex: none;
+  flex: none;
+}
+.pd-sys__proc {
+  position: relative;
+  display: -webkit-flex;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+.pd-sys__pn {
+  -webkit-flex: 1;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--pd-text-2, var(--pd-text));
+}
+.pd-sys__pv {
+  margin-left: 8px;
+  color: var(--pd-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pd-sys__pb {
+  position: absolute;
+  left: 0;
+  bottom: 1px;
+  height: 2px;
+  border-radius: 1px;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-sys__core i {
+    -webkit-transition: none;
+    transition: none;
+  }
+}
