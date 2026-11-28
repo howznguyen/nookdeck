@@ -393,10 +393,84 @@ jobs:
             dist/macos/Nookdeck.dmg
             dist/macos/Nookdeck.dmg.sha256
 
+  # Nookdeck.apk (spec android-app-and-usb-setup): built with -PnookdeckVersion and signed with the owner's release key from the
+  # ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD secrets. Without the key no APK is
+  # made at all (a debug-signed app must never ship): the release goes out without it and the agent says this release has no app.
+  android-app:
+    needs: test-linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release version (the tag on a tag build, package.json on a manual run)
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; else v="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n1)"; fi
+          [ -n "$v" ] || { echo "::error::no version"; exit 1; }
+          echo "RELEASE_VERSION=$v" >> "$GITHUB_ENV"
+          echo "version $v"
+
+      - name: Release key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::no Android release key (secret ANDROID_KEYSTORE_BASE64): no Nookdeck.apk in this release"
+            echo "ANDROID_SIGN=0" >> "$GITHUB_ENV"; exit 0
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_SIGN=1" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        if: env.ANDROID_SIGN == '1'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # AGP 8.7 needs Gradle 8.9 or newer; the project has no wrapper, so the version is pinned here
+      - uses: gradle/actions/setup-gradle@v4
+        if: env.ANDROID_SIGN == '1'
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Android SDK parts
+        if: env.ANDROID_SIGN == '1'
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: Build and sign Nookdeck.apk
+        if: env.ANDROID_SIGN == '1'
+        env:
+          NOOKDECK_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          NOOKDECK_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          NOOKDECK_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          export NOOKDECK_ANDROID_KEYSTORE="$RUNNER_TEMP/release.jks"
+          gradle -p apps/android --no-daemon -q assembleRelease -PnookdeckVersion="$RELEASE_VERSION"
+          apk=apps/android/app/build/outputs/apk/release/app-release.apk
+          signer="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$signer" verify --print-certs "$apk" > certs.txt
+          # the gradle file falls back to the debug key when the keystore is missing: refuse that here
+          if grep -q "CN=Android Debug" certs.txt; then echo "::error::Nookdeck.apk is signed with the debug key"; exit 1; fi
+          grep -m1 "certificate SHA-256 digest" certs.txt
+          mkdir -p dist && cp "$apk" dist/Nookdeck.apk && ls -l dist
+
+      - name: Remove the key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - uses: actions/upload-artifact@v4
+        if: env.ANDROID_SIGN == '1'
+        with:
+          name: android-app
+          retention-days: 3
+          path: dist/Nookdeck.apk
+
   publish:
     # an app job that fails (red in the run) must not hold back the CLI release: whatever was built is attached.
     # The Linux agent is a CLI asset like the others: no release without it.
-    needs: [release, linux-cli, linux-packages, windows-app, mac-app]
+    needs: [release, linux-cli, linux-packages, windows-app, mac-app, android-app]
     if: ${{ !cancelled() && github.ref_type == 'tag' && needs.release.result == 'success' && needs.linux-cli.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
@@ -415,7 +489,7 @@ jobs:
           cat SHA256SUMS.linux >> SHA256SUMS && rm SHA256SUMS.linux
           if [ -f SHA256SUMS.linux-packages ]; then cat SHA256SUMS.linux-packages >> SHA256SUMS && rm SHA256SUMS.linux-packages
           else echo "::warning::the Linux packages were not built; the release goes out without them"; fi
-          for f in Nookdeck.dmg Nookdeck-Setup.exe; do
+          for f in Nookdeck.dmg Nookdeck-Setup.exe Nookdeck.apk; do
             if [ -f "$f" ]; then sha256sum "$f" >> SHA256SUMS; else echo "::warning::$f was not built; the release goes out without it"; fi
           done
           cat SHA256SUMS
@@ -428,12 +502,12 @@ jobs:
           # only this version's notes (plus Install and Files): the file keeps every version, a release shows its own
           sh scripts/release-body.sh "$GITHUB_REF_NAME" > release-body.md
           grep -q "^## Nookdeck ${GITHUB_REF_NAME#v}" release-body.md || { echo "no notes for $GITHUB_REF_NAME in .github/release-notes.md"; exit 1; }
-          gh release create "$GITHUB_REF_NAME" dist/nookdeck-darwin-arm64 dist/nookdeck-darwin-x64 dist/nookdeck-windows-x64.exe dist/nookdeck-linux-x64 dist/nookdeck-linux-arm64 dist/nookdeck-darwin-arm64.gz dist/nookdeck-darwin-x64.gz dist/nookdeck-windows-x64.exe.gz dist/nookdeck-linux-x64.gz dist/nookdeck-linux-arm64.gz dist/phonedesk-darwin-arm64 dist/phonedesk-darwin-x64 dist/phonedesk-windows-x64.exe dist/phonedesk-darwin-arm64.gz dist/phonedesk-darwin-x64.gz dist/phonedesk-windows-x64.exe.gz dist/nookdeck-demo.tgz dist/SHA256SUMS $(ls dist/Nookdeck.dmg dist/Nookdeck.dmg.sha256 dist/Nookdeck-Setup.exe dist/nookdeck_*.deb dist/nookdeck-*.rpm dist/nookdeck-linux-*.tar.gz 2>/dev/null) \
+          gh release create "$GITHUB_REF_NAME" dist/nookdeck-darwin-arm64 dist/nookdeck-darwin-x64 dist/nookdeck-windows-x64.exe dist/nookdeck-linux-x64 dist/nookdeck-linux-arm64 dist/nookdeck-darwin-arm64.gz dist/nookdeck-darwin-x64.gz dist/nookdeck-windows-x64.exe.gz dist/nookdeck-linux-x64.gz dist/nookdeck-linux-arm64.gz dist/phonedesk-darwin-arm64 dist/phonedesk-darwin-x64 dist/phonedesk-windows-x64.exe dist/phonedesk-darwin-arm64.gz dist/phonedesk-darwin-x64.gz dist/phonedesk-windows-x64.exe.gz dist/nookdeck-demo.tgz dist/SHA256SUMS $(ls dist/Nookdeck.dmg dist/Nookdeck.dmg.sha256 dist/Nookdeck-Setup.exe dist/Nookdeck.apk dist/nookdeck_*.deb dist/nookdeck-*.rpm dist/nookdeck-linux-*.tar.gz 2>/dev/null) \
             --repo "$GITHUB_REPOSITORY" --title "Nookdeck $GITHUB_REF_NAME" --notes-file release-body.md --generate-notes
 
   # manual runs only: every asset in one artifact, SHA256SUMS completed the way `publish` does it. Creates no release and no tag.
   dry-run-bundle:
-    needs: [release, linux-cli, linux-packages, windows-app, mac-app]
+    needs: [release, linux-cli, linux-packages, windows-app, mac-app, android-app]
     if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
@@ -447,7 +521,7 @@ jobs:
           cd dist
           if [ -f SHA256SUMS.linux ]; then cat SHA256SUMS.linux >> SHA256SUMS && rm SHA256SUMS.linux; else echo "::warning::the Linux agent was not built"; fi
           if [ -f SHA256SUMS.linux-packages ]; then cat SHA256SUMS.linux-packages >> SHA256SUMS && rm SHA256SUMS.linux-packages; else echo "::warning::the Linux packages were not built"; fi
-          for f in Nookdeck.dmg Nookdeck-Setup.exe; do
+          for f in Nookdeck.dmg Nookdeck-Setup.exe Nookdeck.apk; do
             if [ -f "$f" ]; then sha256sum "$f" >> SHA256SUMS; else echo "::warning::$f was not built"; fi
           done
           cat SHA256SUMS
