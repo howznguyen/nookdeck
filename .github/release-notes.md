@@ -1,3 +1,21 @@
+## Nookdeck 0.7.4
+
+Upgrading: use **Install and restart** in the app, run the install command below again, or `nookdeck update`.
+
+### New
+
+- **An Android phone over the USB cable.** Plug the phone into the computer and press **Set up** on the Devices tab (or in the tray): Nookdeck installs its Android app, connects it through the cable and pairs it, with no Wi-Fi, address or PIN. It needs USB debugging on the phone and Google's adb tool (about 10 MB, downloaded once). You can also keep the phone's screen on while it charges and let the app run without battery limits; forgetting the phone puts those settings back.
+- **New clock styles:** With weather (the time with the current conditions), Lunar calendar (the Vietnamese lunar date, can chi and holidays), Wall calendar (a tear-off page), LED segments, Ring, Stacked, Tick marks round the edge and Dither (the time drawn in ASCII characters). The Flip clock turns each digit like a real flap. Clocks no longer show a "Clock" caption you did not set.
+- **The weather tile, redrawn:** a sky that follows the hour and the weather, thin line icons, wind with its direction, air quality, and on big tiles the week as a chart of highs and lows with the rain of each day.
+- **System tiles, redrawn:** charts across the whole tile, a bar per CPU core, what fills the memory (cached, free, swap), network down and up, load per core, uptime with its start, and the busiest processes on big tiles.
+- **Now Playing:** new layouts for tall, small and square tiles, and volume down and up buttons (hold to keep going).
+- **Plugins:** a `ticker` card part for market rows (Crypto price 1.2.0 and Stocks 1.1.0 use it), and a plugin's settings fall back to its manifest defaults until you change them.
+
+### Fixed
+
+- A browser playing media in two tabs could show one tab's title with the other tab's time.
+- Plugin tile previews line up with the tile again.
+
 ## Nookdeck 0.7.3
 
 Upgrading: use **Install and restart** in the app, run the install command below again, or `nookdeck update`.

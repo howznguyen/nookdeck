@@ -1,6 +1,6 @@
 {
   "name": "nookdeck",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Turn any phone into a Stream Deck-style control panel for your computer. Web-based, no app install.",
   "license": "MIT",
   "type": "module",
