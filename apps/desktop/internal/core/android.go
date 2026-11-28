@@ -43,7 +43,10 @@ func (c *Client) AndroidSetup(ctx context.Context, serial string) (string, error
 	}
 	req.Header.Set("x-nookdeck", "1")
 	req.Header.Set("content-type", "application/json")
-	res, err := c.HTTP.Do(req)
+	// installing the app takes longer than the client's usual 6 s: the caller's context sets the limit
+	hc := *c.HTTP
+	hc.Timeout = 0
+	res, err := hc.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -62,6 +65,27 @@ func (c *Client) AndroidSetup(ctx context.Context, serial string) (string, error
 		return "", fmt.Errorf("%s", out.Error)
 	}
 	return out.Model, nil
+}
+
+// AndroidForget removes the phone set up over USB with this adb serial: its token stops working and, while it is plugged in, the
+// agent puts back what setup changed on it.
+func (c *Client) AndroidForget(ctx context.Context, serial string) error {
+	body, _ := json.Marshal(map[string]any{"serial": serial})
+	req, err := http.NewRequestWithContext(ctx, "POST", c.base()+"/api/android/forget", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("x-nookdeck", "1")
+	req.Header.Set("content-type", "application/json")
+	res, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+	if res.StatusCode >= 300 {
+		return fmt.Errorf("agent answered %d", res.StatusCode)
+	}
+	return nil
 }
 
 // AndroidOffer is the phone the tray menu offers, and how: "setup" (no app, or set up on another computer), "update" (the app is

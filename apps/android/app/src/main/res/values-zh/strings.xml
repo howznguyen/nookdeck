@@ -10,4 +10,5 @@
     <string name="retry">重新查找</string>
     <string name="usb_tip">或者打开 USB 调试后用数据线连接电脑，然后在电脑的 Devices 页点击设置。</string>
     <string name="bad_address">该地址没有响应。</string>
+    <string name="auto_retry">每隔几秒自动重试：重新插上数据线即可。</string>
 </resources>

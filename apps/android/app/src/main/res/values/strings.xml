@@ -10,4 +10,5 @@
     <string name="retry">Search again</string>
     <string name="usb_tip">Or plug the phone into the computer with USB debugging on, and click Set up on the computer\'s Devices tab.</string>
     <string name="bad_address">That address does not answer.</string>
+    <string name="auto_retry">Trying again by itself every few seconds: plugging the cable back in is enough.</string>
 </resources>

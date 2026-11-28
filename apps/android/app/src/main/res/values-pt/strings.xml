@@ -10,4 +10,5 @@
     <string name="retry">Procurar de novo</string>
     <string name="usb_tip">Ou conecte o celular ao computador com a depuração USB ativada e clique em Configurar na aba Devices do computador.</string>
     <string name="bad_address">Esse endereço não responde.</string>
+    <string name="auto_retry">Tenta de novo sozinho a cada poucos segundos: basta ligar o cabo de novo.</string>
 </resources>

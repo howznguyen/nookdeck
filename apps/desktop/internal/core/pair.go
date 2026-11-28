@@ -202,6 +202,25 @@ func (p *PairServer) Handler() http.Handler {
 		}
 		json.NewEncoder(w).Encode(pr)
 	})
+	// Android phones on the USB cable, shown under the QR code: what the agent's USB watcher saw last, and setting one up or removing it
+	mux.HandleFunc(prefix+"android", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
+		defer cancel()
+		s, err := p.client.AndroidPeek(ctx)
+		w.Header().Set("content-type", "application/json")
+		w.Header().Set("cache-control", "no-store")
+		if err != nil {
+			json.NewEncoder(w).Encode(UsbStatus{})
+			return
+		}
+		json.NewEncoder(w).Encode(s)
+	})
+	mux.HandleFunc(prefix+"android/setup", func(w http.ResponseWriter, r *http.Request) {
+		androidAction(w, r, func(ctx context.Context, serial string) error { _, err := p.client.AndroidSetup(ctx, serial); return err })
+	})
+	mux.HandleFunc(prefix+"android/forget", func(w http.ResponseWriter, r *http.Request) {
+		androidAction(w, r, p.client.AndroidForget)
+	})
 	mux.HandleFunc(prefix+"tray", func(w http.ResponseWriter, r *http.Request) {
 		if p.TrayOn == nil {
 			http.NotFound(w, r)
@@ -359,10 +378,33 @@ func (p *PairServer) Handler() http.Handler {
 	})
 }
 
+// androidAction runs a POST {serial} from the pairing window against the agent and answers {ok, error}.
+func androidAction(w http.ResponseWriter, r *http.Request, do func(ctx context.Context, serial string) error) {
+	if r.Method != "POST" {
+		http.Error(w, "POST only", 405)
+		return
+	}
+	var in struct {
+		Serial string `json:"serial"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil || in.Serial == "" {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute) // installing the app can take a while on an old phone
+	defer cancel()
+	w.Header().Set("content-type", "application/json")
+	if err := do(ctx, in.Serial); err != nil {
+		json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{"ok": true})
+}
+
 // PairPage is the HTML of the pairing window, with the texts of lang filled in.
 func PairPage(lang string) string {
 	tx := map[string]string{}
-	for _, k := range []string{"pair.title", "pair.scan", "pair.qrLabel", "pair.pin", "pair.newPin", "pair.via", "pair.copyLink", "pair.copied", "pair.loading", "pair.error", "common.close"} {
+	for _, k := range []string{"pair.title", "pair.scan", "pair.qrLabel", "pair.pin", "pair.newPin", "pair.via", "pair.copyLink", "pair.copied", "pair.loading", "pair.error", "pair.android", "pair.androidSetup", "pair.androidUpdate", "pair.androidAllow", "pair.androidLinked", "pair.androidWaiting", "pair.androidBusy", "pair.androidRemove", "pair.androidRemoved", "pair.androidHint", "common.close"} {
 		tx[k] = T(lang, k)
 	}
 	b, _ := json.Marshal(tx)
@@ -382,12 +424,19 @@ h1{font-size:18px;margin:0}p{margin:0;color:var(--mut);text-align:center}
 label{font-size:13px;color:var(--mut);align-self:stretch}select,button{font:inherit;color:inherit;background:var(--card);border:1px solid transparent;border-radius:8px;padding:8px 10px}
 select{width:100%;margin-top:4px}button{cursor:pointer}button:hover{border-color:var(--acc)}.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 #err{color:#d33;display:none}
+#and{align-self:stretch;display:none;flex-direction:column;gap:8px;border-top:1px solid var(--card);padding-top:14px}
+#and h2{font-size:14px;margin:0}#and .hint{font-size:13px;text-align:left}
+.ph{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:10px;padding:10px 12px}
+.ph .nm{flex:1;min-width:0}.ph b{display:block;font-weight:600}.ph small{color:var(--mut);font-size:12.5px}
+.ph .ok{color:#1f9d55}.ph button{background:var(--bg)}.ph button.pri{background:var(--acc);color:#fff}
+#andmsg{font-size:13px;text-align:left;display:none}
 </style></head><body>
 <h1 id="t"></h1><p id="scan"></p>
 <img id="qr" alt="" width="260" height="260"><div class="pin" id="pin">······</div>
 <div style="align-self:stretch"><label for="addr" id="via"></label><select id="addr"></select></div>
 <div class="row"><button id="copy"></button><button id="renew"></button></div>
 <p id="err"></p>
+<section id="and"><h2 id="andt"></h2><p class="hint" id="andh"></p><div id="phones"></div><p id="andmsg"></p></section>
 <script>
 const TX=__TX__;const $=i=>document.getElementById(i);
 $("t").textContent=TX["pair.title"];document.title=TX["pair.title"];$("scan").textContent=TX["pair.scan"];$("qr").alt=TX["pair.qrLabel"];
@@ -402,5 +451,21 @@ async function load(method){try{const r=await fetch("pairing",{method:method||"G
 $("addr").onchange=e=>{picked=e.target.value;show();};
 $("renew").onclick=()=>load("POST");
 $("copy").onclick=async()=>{const a=data&&data.addresses.find(x=>x.id===picked);if(!a)return;try{await navigator.clipboard.writeText(a.url);}catch(e){}const b=$("copy");const o=b.textContent;b.textContent=TX["pair.copied"];setTimeout(()=>b.textContent=o,1500);};
-load();setInterval(()=>{if(!document.hidden)load();},5000);
+let busy="";
+function note(t,bad){const m=$("andmsg");m.textContent=t||"";m.style.display=t?"block":"none";m.style.color=bad?"#d33":"";}
+async function act(path,serial){busy=serial;note("");drawAnd(last);try{const r=await fetch(path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({serial})});const d=await r.json();
+ if(!d.ok)note(d.error||"",true);else if(path==="android/forget")note(TX["pair.androidRemoved"]);}catch(e){note(TX["pair.error"],true);}busy="";loadAnd();}
+let last=null,drawn="";
+function drawAnd(s){last=s;const key=JSON.stringify([s,busy,TX["pair.android"]]);if(key===drawn)return;drawn=key;const ph=(s&&s.phones)||[];$("and").style.display=ph.length?"flex":"none";const box=$("phones");box.innerHTML="";
+ for(const p of ph){const row=document.createElement("div");row.className="ph";const nm=document.createElement("div");nm.className="nm";const b=document.createElement("b");b.textContent=p.model||p.serial;nm.appendChild(b);
+  const sm=document.createElement("small");let btn=null,rm=null;
+  if(busy===p.serial||s.busy===p.serial){sm.textContent=TX["pair.androidBusy"];}
+  else if(p.state==="unauthorized"){sm.textContent=TX["pair.androidAllow"];}
+  else if(p.state!=="device"){sm.textContent=p.state;}
+  else if(!p.app||!p.setUp||p.appOld){sm.textContent=p.android?"Android "+p.android:"";btn=document.createElement("button");btn.className="pri";btn.textContent=TX[p.appOld&&p.setUp?"pair.androidUpdate":"pair.androidSetup"];btn.onclick=()=>act("android/setup",p.serial);}
+  else{sm.textContent=TX[p.linked?"pair.androidLinked":"pair.androidWaiting"];if(p.linked)sm.className="ok";rm=document.createElement("button");rm.textContent=TX["pair.androidRemove"];rm.onclick=()=>act("android/forget",p.serial);}
+  nm.appendChild(sm);row.appendChild(nm);if(btn){btn.disabled=!!busy;row.appendChild(btn);}if(rm){rm.disabled=!!busy;row.appendChild(rm);}box.appendChild(row);}}
+async function loadAnd(){try{const r=await fetch("android");drawAnd(await r.json());}catch(e){drawAnd(null);}}
+$("andt").textContent=TX["pair.android"];$("andh").textContent=TX["pair.androidHint"];
+load();loadAnd();setInterval(()=>{if(!document.hidden)load();},5000);setInterval(()=>{if(!document.hidden&&!busy)loadAnd();},2000);
 </script></body></html>`

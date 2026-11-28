@@ -10,4 +10,5 @@
     <string name="retry">Chercher à nouveau</string>
     <string name="usb_tip">Ou branchez le téléphone à l’ordinateur avec le débogage USB activé, puis cliquez sur Configurer dans l’onglet Devices de l’ordinateur.</string>
     <string name="bad_address">Cette adresse ne répond pas.</string>
+    <string name="auto_retry">Nouvel essai automatique toutes les quelques secondes : il suffit de rebrancher le câble.</string>
 </resources>

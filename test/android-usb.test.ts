@@ -93,6 +93,7 @@ function fakeAdb(o: { state?: string; installed?: number; reverse?: boolean } = 
     if (a.endsWith("reverse --list")) return ok(phone.reverse ? "UsbFfs tcp:7420 tcp:7420\n" : "");
     if (a.endsWith("reverse tcp:7420 tcp:7420")) { phone.reverse = true; return ok(); }
     if (a.includes(" install -r ")) { phone.installed = 801; return ok("Performing Streamed Install\nSuccess\n"); }
+    if (a.endsWith("settings get global stay_on_while_plugged_in")) return ok("0\n");
     if (a.includes("am start")) return ok("Starting: Intent { cmp=app.nookdeck/.MainActivity }\n");
     return ok();
   };
@@ -100,11 +101,11 @@ function fakeAdb(o: { state?: string; installed?: number; reverse?: boolean } = 
 }
 
 function deps(f: ReturnType<typeof fakeAdb>, more: Partial<UsbDeps> = {}) {
-  const paired: { name: string; serial: string }[] = [];
+  const paired: { name: string; serial: string; undo?: unknown }[] = [];
   const serials: string[] = [];
   const d: UsbDeps = {
     home: mkdtempSync(join(tmpdir(), "pd-usb-")), os: "linux", port: 7420, agentVersion: "0.8.1",
-    pairTrusted: async (name, serial) => { paired.push({ name, serial }); serials.push(serial); return { token: "a".repeat(64) }; },
+    pairTrusted: async (name, serial, undo) => { paired.push({ name, serial, undo }); serials.push(serial); return { token: "a".repeat(64) }; },
     usbSerials: async () => serials,
     lanUrls: async () => ["http://192.168.1.10:7420"],
     computerName: async () => "PC-Phong",
@@ -126,7 +127,7 @@ describe("USB setup", () => {
     const usb = new AndroidUsb(withAdb(d));
     const r = await usb.setup("R58M", { stayAwake: true });
     expect(r).toEqual({ ok: true, model: "SM-J710F" });
-    expect(paired).toEqual([{ name: "SM-J710F", serial: "R58M" }]);
+    expect(paired).toEqual([{ name: "SM-J710F", serial: "R58M", undo: { stayOn: 0 } }]);
     const cmds = f.calls.map((c) => c.join(" "));
     expect(cmds).toContain("-s R58M install -r /tmp/Nookdeck.apk");
     expect(cmds).toContain("-s R58M reverse tcp:7420 tcp:7420");
@@ -200,5 +201,57 @@ describe("pairing without a PIN (USB)", () => {
     expect(mine.length).toBe(1);
     expect(await p.findDevice(a.token)).toBeUndefined();
     expect((await p.findDevice(b.token))?.name).toBe("SM-J710F");
+  });
+});
+
+describe("forgetting a USB phone", () => {
+  test("puts back stay-awake and battery optimisation, and drops the cable link", async () => {
+    const f = fakeAdb({ installed: 801, reverse: true });
+    const usb = new AndroidUsb(withAdb(deps(f).d));
+    expect(await usb.release("R58M", { stayOn: 2, battery: true })).toBe(true);
+    const cmds = f.calls.map((c) => c.join(" "));
+    expect(cmds).toContain("-s R58M shell settings put global stay_on_while_plugged_in 2");
+    expect(cmds).toContain("-s R58M shell dumpsys deviceidle whitelist -app.nookdeck");
+    expect(cmds).toContain("-s R58M reverse --remove tcp:7420");
+  });
+  test("nothing changed by setup: only the cable link goes", async () => {
+    const f = fakeAdb({ installed: 801 });
+    const usb = new AndroidUsb(withAdb(deps(f).d));
+    expect(await usb.release("R58M", undefined)).toBe(true);
+    const cmds = f.calls.map((c) => c.join(" "));
+    expect(cmds.some((c) => c.includes("settings put") || c.includes("deviceidle"))).toBe(false);
+    expect(cmds).toContain("-s R58M reverse --remove tcp:7420");
+  });
+  test("a phone that is unplugged or not allowed is left alone", async () => {
+    const f = fakeAdb({ state: "unauthorized" });
+    const usb = new AndroidUsb(withAdb(deps(f).d));
+    expect(await usb.release("R58M", { stayOn: 2 })).toBe(false);
+    expect(f.calls.map((c) => c.join(" "))).toEqual(["devices -l"]);
+  });
+  test("a stored value that is not a setting number is not sent", async () => {
+    const f = fakeAdb();
+    const usb = new AndroidUsb(withAdb(deps(f).d));
+    await usb.release("R58M", { stayOn: "7; reboot" as unknown as number });
+    expect(f.calls.some((c) => c.join(" ").includes("settings put"))).toBe(false);
+  });
+  test("setting the phone up again keeps the value from before the first setup", async () => {
+    const { Pairing } = await import("../src/pairing");
+    const { loadDevices } = await import("../src/config");
+    const p = new Pairing(undefined, "111111");
+    await p.pairTrusted("SM-G981B", "SER-U", { stayOn: 0, battery: true });
+    await p.pairTrusted("SM-G981B", "SER-U", { stayOn: 7 }); // the first setup left 7
+    expect((await loadDevices()).find((d) => d.usbSerial === "SER-U")?.usbUndo).toEqual({ stayOn: 0, battery: true });
+  });
+});
+
+describe("deck inside the Android app", () => {
+  test("the app is told the layout's orientation; a browser is not", async () => {
+    const { askAppOrientation, inNookdeckApp } = await import("../web/deck/src/screen-logic");
+    const got: string[] = [];
+    expect(askAppOrientation({ NookdeckApp: { setOrientation: (o) => got.push(o) } }, "landscape")).toBe(true);
+    expect(got).toEqual(["landscape"]);
+    expect(askAppOrientation({}, "portrait")).toBe(false);
+    expect(inNookdeckApp("Mozilla/5.0 (Linux; Android 13) Chrome/120 Mobile Safari/537.36 NookdeckApp/0.7.3")).toBe(true);
+    expect(inNookdeckApp("Mozilla/5.0 (Linux; Android 13) Chrome/120 Mobile Safari/537.36")).toBe(false);
   });
 });

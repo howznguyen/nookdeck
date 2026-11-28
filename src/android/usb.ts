@@ -10,6 +10,7 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { adbRunner, downloadPlatformTools, findAdb, hasReverse, parseDevices, parsePackage, type AdbFound, type AdbRun, type DeviceState, type OsId } from "./adb";
+import type { UsbUndo } from "../config";
 
 export const APP_ID = "app.nookdeck";
 export const APP_ACTIVITY = `${APP_ID}/.MainActivity`;
@@ -47,12 +48,14 @@ export interface UsbDeps {
   port: number;
   agentVersion: string;
   /** a device token without the PIN, replacing an earlier one for the same serial */
-  pairTrusted: (name: string, serial: string) => Promise<{ token: string }>;
+  pairTrusted: (name: string, serial: string, undo?: UsbUndo) => Promise<{ token: string }>;
   /** serials of phones paired over USB (devices.json) */
   usbSerials: () => Promise<string[]>;
   /** http://<LAN address>:<port> for the app to fall back to without the cable */
   lanUrls: () => Promise<string[]>;
   computerName: () => Promise<string>;
+  /** this computer's id (/api/hello), so the app reconnects to it and not to another Nookdeck on the Wi-Fi */
+  computerId?: () => Promise<string>;
   /** the APK to install: a file on disk */
   apk: () => Promise<string>;
   log: (line: string) => void;
@@ -211,15 +214,24 @@ export class AndroidUsb {
       const rv = await s(["reverse", `tcp:${this.d.port}`, `tcp:${this.d.port}`], 8_000);
       if (rv.code !== 0) return fail("linking through the cable", rv);
 
-      if (o.stayAwake) await s(["shell", "svc power stayon usb"], 8_000);
-      if (o.battery) await s(["shell", `dumpsys deviceidle whitelist +${APP_ID}`], 8_000);
+      const undo: UsbUndo = {};
+      if (o.stayAwake) {
+        const before = Number.parseInt((await s(["shell", "settings get global stay_on_while_plugged_in"], 8_000)).out.trim(), 10);
+        if (Number.isInteger(before) && before >= 0 && before <= 15) undo.stayOn = before;
+        await s(["shell", "svc power stayon usb"], 8_000);
+      }
+      if (o.battery) {
+        await s(["shell", `dumpsys deviceidle whitelist +${APP_ID}`], 8_000);
+        undo.battery = true;
+      }
 
-      const { token } = await this.d.pairTrusted(model, serial);
+      const { token } = await this.d.pairTrusted(model, serial, undo);
       const lan = (await this.d.lanUrls()).join(",");
       const name = (await this.d.computerName()).replace(/[^\w .\-]/g, "").slice(0, 60) || "Computer";
+      const computer = ((await this.d.computerId?.()) ?? "").replace(/[^0-9a-f]/g, "");
       // `adb shell` joins its arguments into one command line on the phone: quote each value
       const q = (v: string) => `'${v.replace(/'/g, "")}'`;
-      const start = await s(["shell", `am start -n ${APP_ACTIVITY} -a android.intent.action.MAIN --es token ${q(token)} --es usb ${q(`http://localhost:${this.d.port}`)} --es lan ${q(lan)} --es name ${q(name)}`], 15_000);
+      const start = await s(["shell", `am start -n ${APP_ACTIVITY} -a android.intent.action.MAIN --es token ${q(token)} --es usb ${q(`http://localhost:${this.d.port}`)} --es lan ${q(lan)} --es name ${q(name)} --es computer ${q(computer)}`], 15_000);
       if (start.code !== 0 || /Error/i.test(start.out)) return fail("opening the app", start);
       this.d.log(`[android] ${model}: set up over USB`);
       this.watch();
@@ -230,6 +242,30 @@ export class AndroidUsb {
       return { ok: false, error: String(e?.message ?? e).slice(0, 300) };
     } finally {
       this.busy = undefined;
+    }
+  }
+
+  /**
+   * A USB phone was forgotten on the Devices tab: put back what setup changed (stay awake while charging, battery optimisation)
+   * and drop the cable link. Only while the phone is plugged in and allowed; otherwise there is nothing to reach and it stays as it is.
+   */
+  async release(serial: string, undo: UsbUndo | undefined): Promise<boolean> {
+    const adb = this.adb();
+    if (!adb || !/^[\w.:\-]{1,64}$/.test(serial)) return false;
+    const run = this.runner(adb);
+    try {
+      const state = parseDevices((await run(["devices", "-l"], 8_000)).out).find((x) => x.serial === serial);
+      if (state?.state !== "device") return false;
+      const s = (args: string[]) => run(["-s", serial, ...args], 8_000);
+      if (Number.isInteger(undo?.stayOn) && undo!.stayOn! >= 0 && undo!.stayOn! <= 15) await s(["shell", `settings put global stay_on_while_plugged_in ${undo!.stayOn}`]);
+      if (undo?.battery) await s(["shell", `dumpsys deviceidle whitelist -${APP_ID}`]);
+      await s(["reverse", "--remove", `tcp:${this.d.port}`]);
+      this.d.log(`[android] ${serial}: settings from setup put back`);
+      this.info.delete(serial);
+      void this.poll(); // the phone shows as not set up right away (the tray's pairing window, the manage page)
+      return true;
+    } catch {
+      return false;
     }
   }
 }

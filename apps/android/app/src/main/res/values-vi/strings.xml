@@ -10,4 +10,5 @@
     <string name="retry">Tìm lại</string>
     <string name="usb_tip">Hoặc cắm điện thoại vào máy tính (đã bật Gỡ lỗi USB), rồi bấm Cài đặt ở tab Devices trên máy tính.</string>
     <string name="bad_address">Địa chỉ đó không trả lời.</string>
+    <string name="auto_retry">Tự thử lại sau vài giây: chỉ cần cắm lại cáp.</string>
 </resources>

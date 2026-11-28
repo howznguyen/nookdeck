@@ -121,6 +121,11 @@ export function AndroidCard() {
               <span>{t("Let the app run without battery limits")}</span>
               <Switch checked={battery} onCheckedChange={setBattery} aria-label={t("Let the app run without battery limits")} />
             </label>
+            <ul data-part="usb-notes" className="flex list-disc flex-col gap-1 pl-4 text-[11.5px] leading-snug text-muted-foreground">
+              <li>{t("Keep USB debugging on: the deck goes through the cable only while it is. Some banking apps will not open while it is on, so a spare phone suits this best.")}</li>
+              <li>{t("A phone that stays plugged in all day: turn on its battery protection (a charge limit around 85%) if it has one.")}</li>
+              <li>{t("Forgetting this phone on the Devices list puts back the screen and battery settings changed here, if it is plugged in.")}</li>
+            </ul>
           </div>
         )}
         {st?.error && !error && <p className="text-[11.5px] text-muted-foreground">{st.error}</p>}
